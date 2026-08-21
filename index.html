@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Penilaian Karakter</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- jsPDF & AutoTable -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        .z-modal { z-index: 1000; }
+        .z-toast { z-index: 2000; }
+        .z-loading { z-index: 9999; }
+        .touch-target { min-height: 44px; min-width: 44px; }
+    </style>
+</head>
+<body class="text-gray-800 antialiased h-screen overflow-hidden">
+
+    <!-- GLOBAL LOADING OVERLAY -->
+    <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex flex-col items-center justify-center z-loading hidden backdrop-blur-sm">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-4"></div>
+        <p id="loading-text" class="text-white text-lg font-medium">Memproses data...</p>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container" class="fixed top-4 right-4 z-toast flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- MODAL CONFIRMATION -->
+    <div id="modal-container" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-modal hidden backdrop-blur-sm">
+        <div class="bg-white rounded-lg shadow-xl w-11/12 max-w-md overflow-hidden transform transition-all">
+            <div class="p-6">
+                <h3 id="modal-title" class="text-lg font-bold text-gray-900 mb-2">Konfirmasi</h3>
+                <p id="modal-message" class="text-sm text-gray-600 mb-6">Apakah Anda yakin?</p>
+                <div class="flex justify-end gap-3">
+                    <button id="modal-btn-cancel" class="touch-target px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md font-medium transition-colors">Batal</button>
+                    <button id="modal-btn-confirm" class="touch-target px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors">Yakin</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="h-full w-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-700 p-4 absolute inset-0 z-50">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8">
+            <div class="text-center mb-8">
+                <div class="h-16 w-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800">Sistem Penilaian Karakter</h1>
+                <p class="text-sm text-gray-500 mt-2">Silakan login untuk melanjutkan</p>
+            </div>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                    <input type="text" id="login-username" class="touch-target w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input type="password" id="login-password" class="touch-target w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" required>
+                </div>
+                <button type="submit" class="touch-target w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors flex justify-center items-center gap-2">
+                    <i class="fas fa-sign-in-alt"></i> Masuk
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP LAYOUT -->
+    <div id="main-layout" class="h-full w-full hidden flex flex-col md:flex-row bg-gray-100">
+        
+        <!-- Mobile Header -->
+        <div class="md:hidden bg-white shadow-sm h-16 flex items-center justify-between px-4 z-40 relative">
+            <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
+                <i class="fas fa-graduation-cap"></i> Penilaian
+            </div>
+            <button onclick="toggleMobileMenu()" class="touch-target flex items-center justify-center text-gray-600 hover:text-blue-600 outline-none">
+                <i class="fas fa-bars text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Sidebar Navigation -->
+        <div id="sidebar" class="bg-white w-64 shadow-lg flex flex-col absolute md:relative inset-y-0 left-0 transform -translate-x-full md:translate-x-0 transition-transform duration-300 z-50 md:z-auto">
+            <div class="p-6 border-b hidden md:block">
+                <div class="flex items-center gap-3 text-blue-600 font-bold text-xl">
+                    <i class="fas fa-graduation-cap"></i> E-Karakter
+                </div>
+            </div>
+            
+            <div class="p-4 border-b bg-blue-50">
+                <p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Masuk sebagai</p>
+                <p id="user-display-name" class="font-bold text-gray-800">Memuat...</p>
+                <p id="user-display-role" class="text-sm text-blue-600">...</p>
+            </div>
+
+            <nav id="nav-menu" class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+                <!-- Injected via JS -->
+            </nav>
+
+            <div class="p-4 border-t">
+                <button onclick="confirmLogout()" class="touch-target w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50 rounded-md transition-colors font-medium">
+                    <i class="fas fa-sign-out-alt"></i> Keluar
+                </button>
+            </div>
+        </div>
+
+        <div id="mobile-overlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden backdrop-blur-sm"></div>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 overflow-hidden flex flex-col relative h-full">
+            <div id="content-area" class="flex-1 overflow-y-auto p-4 md:p-8 hide-scroll">
+                <!-- Dynamic Pages injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script>
+        // --- PRODUCTION CONFIGURATION ---
+        // GANTI URL DI BAWAH DENGAN URL DEPLOY GOOGLE APPS SCRIPT ANDA
+        const API_URL = "https://script.google.com/macros/s/AKfycbynHR6t7jOUFGEq7q9_9MV-d2_4iV9rKem94lmLePhK2nn1IAJMudkBy-Mtd5ANR4uctA/exec"; 
+
+        // --- GLOBAL STATE (CACHING) ---
+        let currentUser = null;
+        let masterDataCache = {
+            indikator: [],
+            temanSekelas: [],
+            semuaSiswa: [], // Untuk wali/admin
+            loaded: false
+        };
+        let modalConfirmAction = null;
+
+        // --- UI UTILITIES ---
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgClass = type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-red-500' : 'bg-blue-500');
+            const icon = type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle');
+            
+            toast.className = `${bgClass} text-white px-4 py-3 rounded shadow-lg flex items-center gap-3 transform transition-all duration-300 translate-x-full opacity-0 pointer-events-auto`;
+            toast.innerHTML = `<i class="fas ${icon}"></i> <span>${message}</span>`;
+            
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-x-full', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function showModal(title, message, confirmText = 'Yakin', onConfirm = null) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = message;
+            document.getElementById('modal-btn-confirm').textContent = confirmText;
+            modalConfirmAction = onConfirm;
+            document.getElementById('modal-container').classList.remove('hidden');
+        }
+
+        function hideModal() {
+            document.getElementById('modal-container').classList.add('hidden');
+            modalConfirmAction = null;
+        }
+
+        document.getElementById('modal-btn-cancel').addEventListener('click', hideModal);
+        document.getElementById('modal-btn-confirm').addEventListener('click', () => {
+            if (modalConfirmAction) modalConfirmAction();
+            hideModal();
+        });
+
+        function showLoading(text = 'Memproses data...') {
+            document.getElementById('loading-text').textContent = text;
+            document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
+
+        // --- API COMMUNICATIONS (ANTI-CORS PATTERN) ---
+        async function fetchAPI(action, payload = {}) {
+            if (API_URL.includes("YOUR_API_ID_HERE")) {
+                showToast("URL API belum dikonfigurasi!", "error");
+                throw new Error("API_URL not set");
+            }
+
+            const requestData = { action: action, payload: payload };
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const result = await response.json();
+                
+                if (!result.success && result.message === "Invalid Session") {
+                    showToast("Sesi habis, silakan login kembali", "error");
+                    forceLogout();
+                    return { success: false, data: null };
+                }
+                
+                return result;
+            } catch (error) {
+                console.error("API Error:", error);
+                showToast("Koneksi ke server gagal", "error");
+                return { success: false, message: error.message };
+            }
+        }
+
+        // --- AUTHENTICATION ---
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            showLoading('Mencocokkan kredensial...');
+            
+            const res = await fetchAPI('login', { username, password });
+            hideLoading();
+
+            if (res.success) {
+                currentUser = res.data;
+                sessionStorage.setItem('user', JSON.stringify(currentUser));
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('main-layout').classList.remove('hidden');
+                
+                masterDataCache.loaded = false; 
+                initApp();
+                showToast(`Selamat datang, ${currentUser.nama}`);
+            } else {
+                showToast(res.message || 'Login Gagal', 'error');
+            }
+        }
+
+        function confirmLogout() {
+            showModal('Konfirmasi Keluar', 'Yakin ingin keluar?', 'Keluar', () => forceLogout());
+        }
+
+        function forceLogout() {
+            sessionStorage.removeItem('user');
+            currentUser = null;
+            document.getElementById('main-layout').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('login-form').reset();
+            if(!document.getElementById('sidebar').classList.contains('-translate-x-full')) toggleMobileMenu();
+        }
+
+        // --- APP INITIALIZATION ---
+        async function initApp() {
+            document.getElementById('user-display-name').textContent = currentUser.nama;
+            document.getElementById('user-display-role').textContent = currentUser.role.toUpperCase() + (currentUser.nama_kelas ? ` - ${currentUser.nama_kelas}` : '');
+            
+            renderNavMenu();
+            
+            if (currentUser.role === 'siswa') navigate('dashboard-siswa');
+            else if (currentUser.role === 'wali') navigate('dashboard-wali');
+            else if (currentUser.role === 'admin') navigate('dashboard-admin');
+
+            if (!masterDataCache.loaded) loadMasterData();
+        }
+
+        async function loadMasterData() {
+            const action = currentUser.role === 'siswa' ? 'getMasterSiswa' : 'getMasterWaliAdmin';
+            const res = await fetchAPI(action, { userId: currentUser.id_user, idKelas: currentUser.id_kelas });
+            
+            if (res.success) {
+                masterDataCache = { ...res.data, loaded: true };
+                if(activePage.startsWith('penilaian')) navigate(activePage); 
+            }
+        }
+
+        function renderNavMenu() {
+            const menu = document.getElementById('nav-menu');
+            let items = [];
+
+            if (currentUser.role === 'siswa') {
+                items = [
+                    { id: 'dashboard-siswa', icon: 'fa-home', label: 'Dashboard' },
+                    { id: 'penilaian-diri', icon: 'fa-user', label: 'Penilaian Diri' },
+                    { id: 'penilaian-teman', icon: 'fa-users', label: 'Penilaian Teman' }
+                ];
+            } else if (currentUser.role === 'wali') {
+                items = [
+                    { id: 'dashboard-wali', icon: 'fa-home', label: 'Dashboard Kelas' },
+                    { id: 'penilaian-wali', icon: 'fa-clipboard-check', label: 'Observasi' }
+                ];
+            } else if (currentUser.role === 'admin') {
+                items = [
+                    { id: 'dashboard-admin', icon: 'fa-cogs', label: 'Pengaturan' },
+                    { id: 'rekap-rapor', icon: 'fa-file-pdf', label: 'Cetak Rapor' }
+                ];
+            }
+
+            menu.innerHTML = items.map(item => `
+                <button onclick="navigate('${item.id}')" id="nav-${item.id}" class="touch-target w-full flex items-center gap-3 px-4 py-3 rounded-md text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors text-left font-medium">
+                    <i class="fas ${item.icon} w-5 text-center"></i>
+                    <span>${item.label}</span>
+                </button>
+            `).join('');
+        }
+
+        let activePage = '';
+        function navigate(pageId) {
+            document.querySelectorAll('#nav-menu button').forEach(btn => btn.classList.remove('bg-blue-100', 'text-blue-700'));
+            const activeBtn = document.getElementById(`nav-${pageId}`);
+            if (activeBtn) activeBtn.classList.add('bg-blue-100', 'text-blue-700');
+
+            activePage = pageId;
+            const content = document.getElementById('content-area');
+            
+            const sidebar = document.getElementById('sidebar');
+            if (!sidebar.classList.contains('-translate-x-full') && window.innerWidth < 768) toggleMobileMenu();
+
+            if (!masterDataCache.loaded && pageId.startsWith('penilaian')) {
+                content.innerHTML = `<div class="flex flex-col items-center justify-center h-64 text-gray-500"><div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500 mb-4"></div><p>Mengambil indikator penilaian...</p></div>`;
+                return;
+            }
+
+            let html = '';
+            switch (pageId) {
+                case 'dashboard-siswa': html = renderDashboardSiswa(); break;
+                case 'penilaian-diri': html = renderFormPenilaian('Self'); break;
+                case 'penilaian-teman': html = renderFormPenilaian('Peer'); break;
+                case 'dashboard-wali': html = renderDashboardWali(); break;
+                case 'penilaian-wali': html = renderFormPenilaianWali(); break;
+                case 'dashboard-admin': 
+                    html = renderDashboardAdmin(); 
+                    // Trigger load settings for admin after DOM is ready
+                    setTimeout(() => loadAdminSettings(), 100);
+                    break;
+                case 'rekap-rapor': html = renderRekapRapor(); break;
+                default: html = `<div class="p-8 text-center text-gray-500">Halaman tidak ditemukan</div>`;
+            }
+            content.innerHTML = html;
+        }
+
+        // --- PAGE RENDERERS ---
+        function renderDashboardSiswa() {
+            return `
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Halo, ${currentUser.nama}!</h2>
+                    <p class="text-gray-600">Kelas ${currentUser.nama_kelas}</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:shadow-md" onclick="navigate('penilaian-diri')">
+                        <div class="bg-blue-100 p-4 rounded-full text-blue-600 text-2xl"><i class="fas fa-user-edit"></i></div>
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-800">Penilaian Diri</h3>
+                            <p class="text-sm text-gray-500">Isi kuesioner bulan ini</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:shadow-md" onclick="navigate('penilaian-teman')">
+                        <div class="bg-green-100 p-4 rounded-full text-green-600 text-2xl"><i class="fas fa-users"></i></div>
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-800">Penilaian Teman</h3>
+                            <p class="text-sm text-gray-500">Nilai teman sekelasmu</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // FUNGSI INJEKSI NAMA TEMAN
+        function updatePeerName(selectElement) {
+            const selectedOption = selectElement.options[selectElement.selectedIndex];
+            const name = selectedOption.value ? selectedOption.getAttribute('data-nama') : '';
+            
+            const rows = document.querySelectorAll('.peer-question-row');
+            rows.forEach(row => {
+                const nameSpan = row.querySelector('.dynamic-peer-name');
+                const qSpan = row.querySelector('.question-text');
+                const originalText = qSpan.getAttribute('data-original');
+                
+                if (name) {
+                    nameSpan.textContent = name + ' ';
+                    // Mengubah huruf pertama teks asli jadi huruf kecil agar nyambung
+                    qSpan.textContent = originalText.charAt(0).toLowerCase() + originalText.slice(1);
+                } else {
+                    nameSpan.textContent = '';
+                    qSpan.textContent = originalText;
+                }
+            });
+        }
+
+        function renderFormPenilaian(type) {
+            const title = type === 'Self' ? 'FORMAT PENILAIAN DIRI SENDIRI' : 'FORMAT PENILAIAN ANTAR TEMAN';
+            
+            if (masterDataCache.indikator.length === 0) {
+                 return `<div class="p-4 bg-yellow-50 text-yellow-700 rounded-md border border-yellow-200">Data indikator penilaian kosong. Admin belum mengatur indikator di Sheet Master atau Pilar sedang dimatikan.</div>`;
+            }
+
+            const indicators = masterDataCache.indikator.filter(i => i.Tipe === type || i.Tipe === 'All');
+
+            let targetSelect = '';
+            if (type === 'Peer') {
+                const teman = masterDataCache.temanSekelas || [];
+                if(teman.length === 0) return `<div class="p-4 bg-yellow-50 text-yellow-700 rounded-md">Belum ada data teman di kelas Anda.</div>`;
+                
+                targetSelect = `
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Pilih Teman yang Dinilai</label>
+                        <select id="target-siswa" class="touch-target w-full md:w-1/2 p-2 border border-gray-300 rounded-md outline-none focus:border-blue-500" required onchange="updatePeerName(this)">
+                            <option value="">-- Pilih Teman --</option>
+                            ${teman.map(s => `<option value="${s.ID_Siswa}" data-nama="${s.Nama_Siswa}">${s.Nama_Siswa}</option>`).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+
+            let groupedIndicators = {};
+            indicators.forEach(ind => {
+                if(!groupedIndicators[ind.Karakter]) groupedIndicators[ind.Karakter] = [];
+                groupedIndicators[ind.Karakter].push(ind);
+            });
+
+            let tableRows = '';
+            for(let k in groupedIndicators) {
+                let items = groupedIndicators[k];
+                items.forEach((item, idx) => {
+                    tableRows += `
+                        <tr class="border-b hover:bg-gray-50 ${type === 'Peer' ? 'peer-question-row' : ''}">
+                            ${idx === 0 ? `<td rowspan="${items.length}" class="p-3 border-r font-bold text-center align-middle">${k}</td>` : ''}
+                            <td class="p-3 text-sm border-r leading-relaxed">
+                                ${type === 'Peer' ? `<span class="dynamic-peer-name text-blue-700 font-bold"></span>` : ''}
+                                <span class="question-text" ${type === 'Peer' ? `data-original="${item.Pertanyaan}"` : ''}>${item.Pertanyaan}</span>
+                            </td>
+                            <td class="p-2 text-center border-r"><input type="radio" name="ind_${item.ID_Indikator}" value="1" class="w-4 h-4 text-blue-600" required></td>
+                            <td class="p-2 text-center border-r"><input type="radio" name="ind_${item.ID_Indikator}" value="2" class="w-4 h-4 text-blue-600"></td>
+                            <td class="p-2 text-center border-r"><input type="radio" name="ind_${item.ID_Indikator}" value="3" class="w-4 h-4 text-blue-600"></td>
+                            <td class="p-2 text-center"><input type="radio" name="ind_${item.ID_Indikator}" value="4" class="w-4 h-4 text-blue-600"></td>
+                        </tr>
+                    `;
+                });
+            }
+
+            return `
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-6 border-b bg-gray-50">
+                        <h2 class="text-xl font-bold text-center text-gray-800 mb-4">${title}</h2>
+                        ${targetSelect}
+                    </div>
+                    <form id="form-penilaian" onsubmit="submitPenilaian(event, '${type}')" class="p-0">
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[800px] border-collapse">
+                                <thead>
+                                    <tr class="bg-yellow-100 border-b border-t">
+                                        <th rowspan="2" class="p-3 border-r text-gray-800 font-bold w-40">Karakter</th>
+                                        <th rowspan="2" class="p-3 border-r text-gray-800 font-bold">Aspek Penilaian</th>
+                                        <th colspan="4" class="p-2 text-center border-b text-gray-800 font-bold">Skor</th>
+                                    </tr>
+                                    <tr class="bg-yellow-100 border-b">
+                                        <th class="p-2 border-r text-xs font-semibold w-16">Tdk Pernah (1)</th>
+                                        <th class="p-2 border-r text-xs font-semibold w-16">Kadang (2)</th>
+                                        <th class="p-2 border-r text-xs font-semibold w-16">Sering (3)</th>
+                                        <th class="p-2 text-xs font-semibold w-16">Selalu (4)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${tableRows}</tbody>
+                            </table>
+                        </div>
+                        <div class="p-4 border-t bg-gray-50 flex justify-end">
+                            <button type="submit" class="touch-target bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-bold transition-colors">
+                                Simpan Penilaian
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+        }
+
+        function renderDashboardWali() {
+            return `
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col items-center justify-center min-h-[200px] text-gray-500">
+                    <i class="fas fa-chart-bar text-4xl mb-3"></i>
+                    <p>Statistik progress pengisian siswa akan dirender dari data real di sheet.</p>
+                </div>
+            `;
+        }
+
+        function renderFormPenilaianWali() {
+            const siswa = masterDataCache.semuaSiswa || [];
+            if(siswa.length === 0) return `<div class="p-4 bg-yellow-50 text-yellow-700 rounded-md">Belum ada data siswa di kelas ini.</div>`;
+
+            return `
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">Penilaian Observasi Wali Kelas</h2>
+                    <form onsubmit="submitPenilaianWali(event)">
+                        <div class="mb-4">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Pilih Siswa</label>
+                            <select id="target-siswa-wali" class="touch-target w-full p-2 border border-gray-300 rounded-md outline-none focus:border-blue-500" required>
+                                <option value="">-- Pilih Siswa --</option>
+                                ${siswa.map(s => `<option value="${s.ID_Siswa}">${s.Nama_Siswa}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Deskripsi Karakter Umum</label>
+                            <textarea id="catatan-wali" class="w-full p-3 border border-gray-300 rounded-md outline-none focus:border-blue-500 min-h-[100px]" required placeholder="Masukkan catatan observasi karakter..."></textarea>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit" class="touch-target bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-bold">Simpan Catatan</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+        }
+
+        function renderDashboardAdmin() {
+            return `
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Pengaturan Sistem</h2>
+                    <p class="text-gray-600">Manajemen fitur dan kuesioner aplikasi.</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+                    <h3 class="font-bold text-lg text-gray-800 mb-2 border-b pb-2">Kontrol Pilar Penilaian</h3>
+                    <p class="text-sm text-gray-500 mb-4">Centang pilar mana saja yang akan ditampilkan kepada siswa di bulan ini.</p>
+                    
+                    <div id="admin-settings-container">
+                        <div class="flex items-center gap-2 text-gray-500 text-sm">
+                            <i class="fas fa-spinner fa-spin"></i> Mengambil data dari server...
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadAdminSettings() {
+            const container = document.getElementById('admin-settings-container');
+            if(!container) return;
+
+            const res = await fetchAPI('getSettings');
+            if(res.success) {
+                const baikChecked = res.data.pilar_baik === '1' ? 'checked' : '';
+                const kuatChecked = res.data.pilar_kuat === '1' ? 'checked' : '';
+                
+                container.innerHTML = `
+                    <div class="space-y-4 max-w-md">
+                        <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                            <input type="checkbox" id="toggle-baik" class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500" ${baikChecked}>
+                            <span class="font-medium text-gray-700">Aktifkan Kuesioner Pilar "BAIK"</span>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                            <input type="checkbox" id="toggle-kuat" class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500" ${kuatChecked}>
+                            <span class="font-medium text-gray-700">Aktifkan Kuesioner Pilar "KUAT"</span>
+                        </label>
+                        <button onclick="updatePilarSetting()" class="touch-target mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors w-full">
+                            <i class="fas fa-save mr-2"></i> Simpan Pengaturan
+                        </button>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `<p class="text-red-500 text-sm">Gagal memuat pengaturan. Cek koneksi API.</p>`;
+            }
+        }
+
+        async function updatePilarSetting() {
+            const baik = document.getElementById('toggle-baik').checked ? '1' : '0';
+            const kuat = document.getElementById('toggle-kuat').checked ? '1' : '0';
+            
+            showLoading('Menyimpan pengaturan pilar...');
+            const res = await fetchAPI('saveSettings', { pilar_baik: baik, pilar_kuat: kuat, id_user: currentUser.id_user });
+            hideLoading();
+            
+            if(res.success) {
+                showToast('Pengaturan pilar berhasil diperbarui!');
+                masterDataCache.loaded = false; // Reset cache agar tarikan data berikutnya sesuai pengaturan baru
+            } else {
+                showToast('Gagal: ' + res.message, 'error');
+            }
+        }
+
+        function renderRekapRapor() {
+            const siswa = masterDataCache.semuaSiswa || [];
+            return `
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">Cetak Rapor Karakter</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-100 border-b">
+                                    <th class="p-3 font-semibold text-sm">Nama Siswa</th>
+                                    <th class="p-3 font-semibold text-sm">Kelas</th>
+                                    <th class="p-3 font-semibold text-sm">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${siswa.length === 0 ? `<tr><td colspan="3" class="p-4 text-center">Data kosong</td></tr>` : 
+                                  siswa.map(s => `
+                                    <tr class="border-b hover:bg-gray-50">
+                                        <td class="p-3 font-medium text-gray-800">${s.Nama_Siswa}</td>
+                                        <td class="p-3 text-sm">${s.ID_Kelas}</td>
+                                        <td class="p-3">
+                                            <button onclick="downloadPDFRapor('${s.ID_Siswa}', '${s.Nama_Siswa}')" class="touch-target bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2">
+                                                <i class="fas fa-file-pdf"></i> Unduh PDF
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- SUBMIT ACTIONS ---
+        async function submitPenilaian(e, type) {
+            e.preventDefault();
+            const form = e.target;
+            const targetId = type === 'Self' ? currentUser.id_relasi : form.querySelector('#target-siswa').value;
+            
+            const formData = new FormData(form);
+            const answers = {};
+            for (let [key, value] of formData.entries()) {
+                if (key.startsWith('ind_')) answers[key.replace('ind_', '')] = parseInt(value);
+            }
+
+            showModal('Konfirmasi', 'Kirim penilaian ini?', 'Kirim', async () => {
+                showLoading('Menyimpan ke database...');
+                const payload = {
+                    id_penilai: currentUser.id_relasi,
+                    id_dinilai: targetId,
+                    tipe: type,
+                    jawaban: JSON.stringify(answers)
+                };
+
+                const res = await fetchAPI('simpanNilai', payload);
+                hideLoading();
+
+                if(res.success) {
+                    showToast('Berhasil disimpan!');
+                    form.reset();
+                    if(type === 'Peer') updatePeerName(form.querySelector('#target-siswa')); // Reset text
+                } else {
+                    showToast('Gagal: ' + res.message, 'error');
+                }
+            });
+        }
+
+        async function submitPenilaianWali(e) {
+            e.preventDefault();
+            const targetId = document.getElementById('target-siswa-wali').value;
+            const catatan = document.getElementById('catatan-wali').value;
+
+            showLoading('Menyimpan catatan...');
+            const res = await fetchAPI('simpanNilaiWali', { id_penilai: currentUser.id_relasi, id_dinilai: targetId, tipe: 'Wali', catatan: catatan });
+            hideLoading();
+
+            if(res.success) {
+                showToast('Catatan tersimpan!');
+                e.target.reset();
+            } else {
+                showToast('Gagal: ' + res.message, 'error');
+            }
+        }
+
+        async function downloadPDFRapor(idSiswa, namaSiswa) {
+            showLoading('Mengambil rekap nilai dari server...');
+            const res = await fetchAPI('getRekapNilaiSiswa', { id_siswa: idSiswa });
+            
+            if(!res.success) {
+                hideLoading();
+                showToast('Gagal mengambil data: ' + res.message, 'error');
+                return;
+            }
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                doc.setFontSize(16);
+                doc.setFont("helvetica", "bold");
+                doc.text("RAPOR KARAKTER SISWA", 105, 20, { align: "center" });
+                
+                doc.setFontSize(11);
+                doc.setFont("helvetica", "normal");
+                doc.text(`Nama Santri: ${namaSiswa}`, 14, 40);
+                doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, 48);
+
+                const tableData = [];
+                const rekap = res.data.rekapKarakter || {};
+                for(let k in rekap) {
+                    let skor = parseFloat(rekap[k]);
+                    let kategori = skor > 3.5 ? 'Sangat Baik' : (skor > 2.5 ? 'Baik' : 'Cukup');
+                    tableData.push([k, skor.toFixed(1), kategori]);
+                }
+
+                if(tableData.length === 0) tableData.push(['Belum ada data', '-', '-']);
+
+                doc.autoTable({
+                    startY: 60,
+                    head: [['Karakter / Pilar', 'Skor Rata-rata', 'Kategori']],
+                    body: tableData,
+                    theme: 'grid',
+                    headStyles: { fillColor: [41, 128, 185] }
+                });
+
+                const finalY = doc.lastAutoTable.finalY || 60;
+                doc.setFont("helvetica", "bold");
+                doc.text("Catatan Wali Kelas:", 14, finalY + 15);
+                doc.setFont("helvetica", "normal");
+                
+                const catatanStr = res.data.catatanWali || "Belum ada catatan dari Wali Kelas.";
+                const splitCatatan = doc.splitTextToSize(catatanStr, 180);
+                doc.text(splitCatatan, 14, finalY + 25);
+                
+                doc.save(`Rapor_${namaSiswa.replace(/\s+/g, '_')}.pdf`);
+                hideLoading();
+                showToast('PDF berhasil diunduh!');
+
+            } catch (error) {
+                console.error(error);
+                hideLoading();
+                showToast('Gagal memproses PDF', 'error');
+            }
+        }
+
+        window.onload = () => {
+            const savedUser = sessionStorage.getItem('user');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('main-layout').classList.remove('hidden');
+                initApp();
+            }
+        };
+    </script>
+</body>
+</html>
