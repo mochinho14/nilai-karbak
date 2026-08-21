@@ -1,750 +1,1704 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Penilaian Karakter</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- jsPDF & AutoTable -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .hide-scroll::-webkit-scrollbar { display: none; }
-        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-        .z-modal { z-index: 1000; }
-        .z-toast { z-index: 2000; }
-        .z-loading { z-index: 9999; }
-        .touch-target { min-height: 44px; min-width: 44px; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Penilaian Karakter BaKu - SMP DTBS Putra</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    .z-overlay { z-index: 9999; }
+    .z-toast { z-index: 2000; }
+    .z-modal { z-index: 1000; }
+  </style>
 </head>
-<body class="text-gray-800 antialiased h-screen overflow-hidden">
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
 
-    <!-- GLOBAL LOADING OVERLAY -->
-    <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex flex-col items-center justify-center z-loading hidden backdrop-blur-sm">
-        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-4"></div>
-        <p id="loading-text" class="text-white text-lg font-medium">Memproses data...</p>
+  <!-- TOAST NOTIFICATION CONTAINER (z-2000) -->
+  <div id="toast-container" class="fixed top-5 right-5 z-toast flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- GLOBAL LOADING OVERLAY (z-9999) -->
+  <div id="loading-overlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-overlay hidden flex-col items-center justify-center text-white">
+    <div class="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mb-3"></div>
+    <p id="loading-text" class="text-sm font-medium tracking-wide">Menghubungkan ke server...</p>
+  </div>
+
+  <!-- DYNAMIC MODAL CONTAINER (z-1000) -->
+  <div id="modal-container" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-modal hidden items-center justify-center p-4">
+    <div id="modal-card" class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all scale-95 opacity-0 max-h-[90vh] flex flex-col">
+      <div class="p-6 overflow-y-auto flex-grow">
+        <h3 id="modal-title" class="text-lg font-bold text-slate-800 mb-2">Konfirmasi</h3>
+        <div id="modal-message" class="text-sm text-slate-600 mb-4">Apakah Anda yakin ingin melanjutkan?</div>
+      </div>
+      <div class="px-6 py-4 bg-slate-50 border-t flex justify-end gap-3 flex-shrink-0">
+        <button id="modal-cancel-btn" onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition min-h-[44px]">Batal</button>
+        <button id="modal-confirm-btn" class="px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-sm transition min-h-[44px]">Ya, Lanjutkan</button>
+      </div>
     </div>
+  </div>
 
-    <!-- TOAST CONTAINER -->
-    <div id="toast-container" class="fixed top-4 right-4 z-toast flex flex-col gap-2 pointer-events-none"></div>
-
-    <!-- MODAL CONFIRMATION -->
-    <div id="modal-container" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-modal hidden backdrop-blur-sm">
-        <div class="bg-white rounded-lg shadow-xl w-11/12 max-w-md overflow-hidden transform transition-all">
-            <div class="p-6">
-                <h3 id="modal-title" class="text-lg font-bold text-gray-900 mb-2">Konfirmasi</h3>
-                <p id="modal-message" class="text-sm text-gray-600 mb-6">Apakah Anda yakin?</p>
-                <div class="flex justify-end gap-3">
-                    <button id="modal-btn-cancel" class="touch-target px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md font-medium transition-colors">Batal</button>
-                    <button id="modal-btn-confirm" class="touch-target px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors">Yakin</button>
-                </div>
+  <!-- DOM AUTH GUARD: AUTHENTICATED APP SCREEN -->
+  <div id="app-screen" class="hidden flex-col min-h-screen">
+    
+    <!-- HEADER & NAVIGATION -->
+    <header class="bg-brand-800 text-white sticky top-0 z-30 shadow-md">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-bold text-xl text-emerald-300">
+              <i class="fa-solid fa-kaaba"></i>
             </div>
-        </div>
-    </div>
-
-    <!-- LOGIN SCREEN -->
-    <div id="login-screen" class="h-full w-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-700 p-4 absolute inset-0 z-50">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8">
-            <div class="text-center mb-8">
-                <div class="h-16 w-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-                    <i class="fas fa-graduation-cap"></i>
-                </div>
-                <h1 class="text-2xl font-bold text-gray-800">Sistem Penilaian Karakter</h1>
-                <p class="text-sm text-gray-500 mt-2">Silakan login untuk melanjutkan</p>
+            <div>
+              <h1 class="font-bold text-base sm:text-lg leading-tight">Penilaian Karakter BaKu</h1>
+              <p class="text-xs text-emerald-200">SMP DTBS Putra</p>
             </div>
-            
-            <form id="login-form" onsubmit="handleLogin(event)">
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                    <input type="text" id="login-username" class="touch-target w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" required>
-                </div>
-                <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                    <input type="password" id="login-password" class="touch-target w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" required>
-                </div>
-                <button type="submit" class="touch-target w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors flex justify-center items-center gap-2">
-                    <i class="fas fa-sign-in-alt"></i> Masuk
-                </button>
-            </form>
-        </div>
-    </div>
+          </div>
 
-    <!-- MAIN APP LAYOUT -->
-    <div id="main-layout" class="h-full w-full hidden flex flex-col md:flex-row bg-gray-100">
-        
-        <!-- Mobile Header -->
-        <div class="md:hidden bg-white shadow-sm h-16 flex items-center justify-between px-4 z-40 relative">
-            <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
-                <i class="fas fa-graduation-cap"></i> Penilaian
+          <!-- Desktop Navigation -->
+          <nav id="desktop-nav" class="hidden md:flex items-center space-x-1 text-sm font-medium"></nav>
+
+          <!-- User Info & Action -->
+          <div class="flex items-center space-x-3">
+            <div class="text-right hidden sm:block">
+              <div id="user-display-name" class="font-semibold text-sm">--</div>
+              <div id="user-display-role" class="text-xs text-emerald-300">--</div>
             </div>
-            <button onclick="toggleMobileMenu()" class="touch-target flex items-center justify-center text-gray-600 hover:text-blue-600 outline-none">
-                <i class="fas fa-bars text-xl"></i>
+            <button onclick="logout()" title="Keluar" class="p-2 text-emerald-200 hover:text-white hover:bg-white/10 rounded-lg transition min-w-[44px] min-h-[44px] flex items-center justify-center">
+              <i class="fa-solid fa-right-from-bracket text-lg"></i>
             </button>
+            <button onclick="toggleMobileMenu()" class="md:hidden p-2 text-emerald-200 hover:text-white rounded-lg focus:outline-none min-w-[44px] min-h-[44px] flex items-center justify-center">
+              <i class="fa-solid fa-bars text-xl"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Dropdown Menu -->
+      <div id="mobile-menu" class="hidden md:hidden bg-brand-900 border-t border-brand-700 px-4 pt-2 pb-4 space-y-1"></div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      
+      <!-- PERIODE BANNER -->
+      <div id="periode-info-banner" class="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="flex items-center space-x-3">
+          <span class="p-2 bg-emerald-100 text-emerald-700 rounded-lg"><i class="fa-solid fa-calendar-check text-lg"></i></span>
+          <div>
+            <span class="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Periode Aktif</span>
+            <h4 id="active-periode-text" class="font-bold text-slate-800 text-sm sm:text-base">Memuat informasi periode...</h4>
+          </div>
+        </div>
+        <div id="active-fokus-badge" class="flex flex-wrap gap-1"></div>
+      </div>
+
+      <!-- VIEW MODULE CONTAINER -->
+      <div id="view-content"></div>
+
+    </main>
+
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+      <p>&copy; 2026 SMP DTBS Putra - Sistem Penilaian Karakter BaKu (Baik & Kuat)</p>
+    </footer>
+
+  </div>
+
+  <!-- DOM AUTH GUARD: LOGIN SCREEN -->
+  <div id="login-screen" class="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+    <div class="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200/80 overflow-hidden">
+      <div class="bg-brand-800 p-6 text-center text-white">
+        <div class="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-3 text-3xl text-emerald-300 shadow-inner">
+          <i class="fa-solid fa-kaaba"></i>
+        </div>
+        <h2 class="text-xl font-bold">Penilaian Karakter BaKu</h2>
+        <p class="text-xs text-emerald-200 mt-1">SMP Daarut Tauhiid Boarding School Putra</p>
+      </div>
+
+      <form id="login-form" onsubmit="handleLogin(event)" class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Username / NISN</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-solid fa-user"></i></span>
+            <input type="text" id="login-username" required class="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition" placeholder="Masukkan Username / NISN" />
+          </div>
         </div>
 
-        <!-- Sidebar Navigation -->
-        <div id="sidebar" class="bg-white w-64 shadow-lg flex flex-col absolute md:relative inset-y-0 left-0 transform -translate-x-full md:translate-x-0 transition-transform duration-300 z-50 md:z-auto">
-            <div class="p-6 border-b hidden md:block">
-                <div class="flex items-center gap-3 text-blue-600 font-bold text-xl">
-                    <i class="fas fa-graduation-cap"></i> E-Karakter
-                </div>
-            </div>
-            
-            <div class="p-4 border-b bg-blue-50">
-                <p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Masuk sebagai</p>
-                <p id="user-display-name" class="font-bold text-gray-800">Memuat...</p>
-                <p id="user-display-role" class="text-sm text-blue-600">...</p>
-            </div>
-
-            <nav id="nav-menu" class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-                <!-- Injected via JS -->
-            </nav>
-
-            <div class="p-4 border-t">
-                <button onclick="confirmLogout()" class="touch-target w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50 rounded-md transition-colors font-medium">
-                    <i class="fas fa-sign-out-alt"></i> Keluar
-                </button>
-            </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Password</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-solid fa-lock"></i></span>
+            <input type="password" id="login-password" required class="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition" placeholder="••••••••" />
+          </div>
         </div>
 
-        <div id="mobile-overlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden backdrop-blur-sm"></div>
-
-        <!-- Main Content Area -->
-        <div class="flex-1 overflow-hidden flex flex-col relative h-full">
-            <div id="content-area" class="flex-1 overflow-y-auto p-4 md:p-8 hide-scroll">
-                <!-- Dynamic Pages injected here -->
-            </div>
-        </div>
+        <button type="submit" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition min-h-[44px]">
+          Masuk ke Aplikasi
+        </button>
+      </form>
     </div>
+  </div>
 
-    <!-- MAIN SCRIPT -->
-    <script>
-        // --- PRODUCTION CONFIGURATION ---
-        // GANTI URL DI BAWAH DENGAN URL DEPLOY GOOGLE APPS SCRIPT ANDA
-        const API_URL = "https://script.google.com/macros/s/AKfycbynHR6t7jOUFGEq7q9_9MV-d2_4iV9rKem94lmLePhK2nn1IAJMudkBy-Mtd5ANR4uctA/exec"; 
+  <script>
+    // CONFIGURATION: Tempel Web App URL Google Apps Script Anda di sini
+    const API_URL = "https://script.google.com/macros/s/AKfycbyhfU5WB_IClXAzrNu1e-YNm1zsKTPw_Kl5699Zx1WGHate0sZP3PstsL9flAmSitYy/exec";
 
-        // --- GLOBAL STATE (CACHING) ---
-        let currentUser = null;
-        let masterDataCache = {
-            indikator: [],
-            temanSekelas: [],
-            semuaSiswa: [], // Untuk wali/admin
-            loaded: false
-        };
-        let modalConfirmAction = null;
+    // Application State Cache
+    const state = {
+      currentUser: null,
+      token: null,
+      activePeriode: null,
+      pertanyaan: [],
+      activePertanyaan: [],
+      siswaList: [],
+      waliList: [],
+      periodeList: [],
+      rekapFilter: {
+        semester: 'Ganjil',
+        fokus: 'Semua'
+      },
+      rekapData: null
+    };
 
-        // --- UI UTILITIES ---
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            const bgClass = type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-red-500' : 'bg-blue-500');
-            const icon = type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle');
-            
-            toast.className = `${bgClass} text-white px-4 py-3 rounded shadow-lg flex items-center gap-3 transform transition-all duration-300 translate-x-full opacity-0 pointer-events-auto`;
-            toast.innerHTML = `<i class="fas ${icon}"></i> <span>${message}</span>`;
-            
-            container.appendChild(toast);
-            requestAnimationFrame(() => toast.classList.remove('translate-x-full', 'opacity-0'));
-            setTimeout(() => {
-                toast.classList.add('translate-x-full', 'opacity-0');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
+    // UI Helpers
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const colors = {
+        success: 'bg-emerald-800 text-white border-emerald-600',
+        error: 'bg-rose-800 text-white border-rose-600',
+        warning: 'bg-amber-800 text-white border-amber-600',
+        info: 'bg-slate-800 text-white border-slate-600'
+      };
+
+      const icons = {
+        success: 'fa-circle-check text-emerald-300',
+        error: 'fa-circle-xmark text-rose-300',
+        warning: 'fa-triangle-exclamation text-amber-300',
+        info: 'fa-circle-info text-blue-300'
+      };
+
+      toast.className = `flex items-center gap-3 p-4 rounded-xl shadow-xl border pointer-events-auto transform transition-all duration-300 translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+      toast.innerHTML = `
+        <i class="fa-solid ${icons[type]} text-lg"></i>
+        <div class="text-sm font-medium flex-grow">${message}</div>
+        <button onclick="this.parentElement.remove()" class="text-slate-300 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      `;
+
+      container.appendChild(toast);
+      setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 10);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    function showModal(title, messageHtml, onConfirm, confirmText = "Ya, Lanjutkan") {
+      const container = document.getElementById('modal-container');
+      const card = document.getElementById('modal-card');
+      document.getElementById('modal-title').innerText = title;
+      document.getElementById('modal-message').innerHTML = messageHtml;
+      
+      const confirmBtn = document.getElementById('modal-confirm-btn');
+      confirmBtn.innerText = confirmText;
+      confirmBtn.onclick = () => {
+        if (onConfirm) {
+          const shouldClose = onConfirm();
+          if (shouldClose !== false) closeModal();
+        } else {
+          closeModal();
         }
+      };
 
-        function showModal(title, message, confirmText = 'Yakin', onConfirm = null) {
-            document.getElementById('modal-title').textContent = title;
-            document.getElementById('modal-message').textContent = message;
-            document.getElementById('modal-btn-confirm').textContent = confirmText;
-            modalConfirmAction = onConfirm;
-            document.getElementById('modal-container').classList.remove('hidden');
-        }
+      container.classList.remove('hidden');
+      container.classList.add('flex');
+      setTimeout(() => {
+        card.classList.remove('scale-95', 'opacity-0');
+        card.classList.add('scale-100', 'opacity-100');
+      }, 10);
+    }
 
-        function hideModal() {
-            document.getElementById('modal-container').classList.add('hidden');
-            modalConfirmAction = null;
-        }
+    function closeModal() {
+      const container = document.getElementById('modal-container');
+      const card = document.getElementById('modal-card');
+      card.classList.remove('scale-100', 'opacity-100');
+      card.classList.add('scale-95', 'opacity-0');
+      setTimeout(() => {
+        container.classList.add('hidden');
+        container.classList.remove('flex');
+      }, 200);
+    }
 
-        document.getElementById('modal-btn-cancel').addEventListener('click', hideModal);
-        document.getElementById('modal-btn-confirm').addEventListener('click', () => {
-            if (modalConfirmAction) modalConfirmAction();
-            hideModal();
+    function showLoading(text = "Menghubungkan ke server...") {
+      document.getElementById('loading-text').innerText = text;
+      const el = document.getElementById('loading-overlay');
+      el.classList.remove('hidden');
+      el.classList.add('flex');
+    }
+
+    function hideLoading() {
+      const el = document.getElementById('loading-overlay');
+      el.classList.add('hidden');
+      el.classList.remove('flex');
+    }
+
+    function toggleMobileMenu() {
+      const menu = document.getElementById('mobile-menu');
+      menu.classList.toggle('hidden');
+    }
+
+    async function apiRequest(action, data = {}) {
+      if (API_URL === "URL_WEB_APP_GAS_ANDA_DISINI") {
+        showToast("Konfigurasi API_URL belum diatur dengan Web App GAS Anda!", "error");
+        return { success: false, message: "URL API belum diset." };
+      }
+
+      const payload = {
+        action: action,
+        token: state.token || (state.currentUser ? state.currentUser.token : ''),
+        data: data
+      };
+
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(payload)
         });
 
-        function showLoading(text = 'Memproses data...') {
-            document.getElementById('loading-text').textContent = text;
-            document.getElementById('loading-overlay').classList.remove('hidden');
+        if (!response.ok) throw new Error(`HTTP Status ${response.status}`);
+        return await response.json();
+      } catch (err) {
+        console.error("API Error:", err);
+        showToast("Gagal menghubungkan ke server API.", "error");
+        return { success: false, message: err.message };
+      }
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value;
+
+      showLoading("Memverifikasi Kredensial...");
+      const res = await apiRequest('login', { username, password });
+      hideLoading();
+
+      if (res && res.success) {
+        state.currentUser = res.data.user;
+        state.token = res.data.token;
+        
+        sessionStorage.setItem('baku_user', JSON.stringify(res.data.user));
+        sessionStorage.setItem('baku_token', res.data.token);
+
+        initAuthenticatedApp();
+      } else {
+        showToast(res.message || "Login gagal, silakan periksa akun Anda.", "error");
+      }
+    }
+
+    function checkExistingSession() {
+      const savedUser = sessionStorage.getItem('baku_user');
+      const savedToken = sessionStorage.getItem('baku_token');
+      if (savedUser && savedToken) {
+        state.currentUser = JSON.parse(savedUser);
+        state.token = savedToken;
+        initAuthenticatedApp();
+      }
+    }
+
+    async function initAuthenticatedApp() {
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('app-screen').classList.remove('hidden');
+      document.getElementById('app-screen').classList.add('flex');
+
+      document.getElementById('user-display-name').innerText = state.currentUser.nama;
+      document.getElementById('user-display-role').innerText = state.currentUser.role === 'admin' ? 'Administrator' : (state.currentUser.role === 'wali' ? `Wali Kelas ${state.currentUser.kelasBinaan}` : `Siswa ${state.currentUser.kelas}`);
+
+      renderNavigation();
+      await loadInitialData();
+
+      if (state.currentUser.role === 'admin') navigateTo('admin-dashboard');
+      else if (state.currentUser.role === 'wali') navigateTo('wali-dashboard');
+      else if (state.currentUser.role === 'siswa') navigateTo('siswa-dashboard');
+
+      showToast(`Selamat datang, ${state.currentUser.nama}!`, "success");
+    }
+
+    async function loadInitialData() {
+      showLoading("Memuat data aplikasi...");
+      const res = await apiRequest('getInitialData');
+      hideLoading();
+
+      if (res && res.success) {
+        state.activePeriode = res.data.activePeriode;
+        state.pertanyaan = res.data.pertanyaan || [];
+        state.activePertanyaan = res.data.activePertanyaan || res.data.pertanyaan || [];
+        
+        if (state.activePeriode) {
+          state.rekapFilter.semester = state.activePeriode.semester;
         }
 
-        function hideLoading() {
-            document.getElementById('loading-overlay').classList.add('hidden');
+        updatePeriodeBanner();
+      } else {
+        showToast("Gagal memuat data periode dan pertanyaan.", "warning");
+      }
+    }
+
+    function updatePeriodeBanner() {
+      const p = state.activePeriode;
+      if (!p) {
+        document.getElementById('active-periode-text').innerText = "Tidak ada periode aktif";
+        document.getElementById('active-fokus-badge').innerHTML = '';
+        return;
+      }
+
+      document.getElementById('active-periode-text').innerText = `Tahun Ajaran ${p.tahunAjaran} - ${p.bulan} (Semester ${p.semester})`;
+      const badgeCont = document.getElementById('active-fokus-badge');
+      badgeCont.innerHTML = '';
+      
+      if (p.pilarBaik) {
+        badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-semibold bg-emerald-700 text-white rounded-full">Pilar: Baik</span>`;
+      }
+      if (p.pilarKuat) {
+        badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-semibold bg-blue-700 text-white rounded-full">Pilar: Kuat</span>`;
+      }
+      if (p.fokusJagaLisan) {
+        badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-medium bg-emerald-600 text-white rounded-full">Jaga Lisan</span>`;
+      }
+      if (p.fokusBR3T) {
+        badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-medium bg-teal-600 text-white rounded-full">BR3T</span>`;
+      }
+      badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-bold ${p.status === 'Buka' ? 'bg-green-700' : 'bg-rose-700'} text-white rounded-full">${p.status}</span>`;
+    }
+
+    function logout() {
+      showModal("Konfirmasi Keluar", "<p>Apakah Anda yakin ingin keluar dari aplikasi?</p>", () => {
+        sessionStorage.removeItem('baku_user');
+        sessionStorage.removeItem('baku_token');
+        state.currentUser = null;
+        state.token = null;
+        document.getElementById('app-screen').classList.add('hidden');
+        document.getElementById('app-screen').classList.remove('flex');
+        document.getElementById('login-screen').classList.remove('hidden');
+        showToast("Anda telah keluar.", "info");
+      });
+    }
+
+    function renderNavigation() {
+      const desktopNav = document.getElementById('desktop-nav');
+      const mobileNav = document.getElementById('mobile-menu');
+      const role = state.currentUser.role;
+
+      let navItems = [];
+      if (role === 'admin') {
+        navItems = [
+          { id: 'admin-dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
+          { id: 'admin-siswa', label: 'Data Siswa', icon: 'fa-user-graduate' },
+          { id: 'admin-walikelas', label: 'Wali Kelas', icon: 'fa-chalkboard-user' },
+          { id: 'admin-pertanyaan', label: 'Pertanyaan', icon: 'fa-clipboard-question' },
+          { id: 'admin-periode', label: 'Periode', icon: 'fa-calendar-days' },
+        ];
+      } else if (role === 'wali') {
+        navItems = [
+          { id: 'wali-dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
+          { id: 'wali-observasi', label: 'Observasi Siswa', icon: 'fa-square-check' },
+          { id: 'wali-rekap', label: 'Rekap Nilai Akhir', icon: 'fa-file-invoice' },
+        ];
+      } else if (role === 'siswa') {
+        navItems = [
+          { id: 'siswa-dashboard', label: 'Dashboard', icon: 'fa-house' },
+          { id: 'siswa-diri', label: 'Penilaian Diri', icon: 'fa-user-check' },
+          { id: 'siswa-teman', label: 'Penilaian Teman', icon: 'fa-users' },
+        ];
+      }
+
+      desktopNav.innerHTML = navItems.map(item => `
+        <button onclick="navigateTo('${item.id}')" id="nav-btn-${item.id}" class="px-3 py-2 rounded-lg text-emerald-100 hover:text-white hover:bg-white/10 transition flex items-center space-x-2">
+          <i class="fa-solid ${item.icon}"></i>
+          <span>${item.label}</span>
+        </button>
+      `).join('');
+
+      mobileNav.innerHTML = navItems.map(item => `
+        <button onclick="navigateTo('${item.id}'); toggleMobileMenu();" class="w-full text-left px-3 py-2.5 rounded-lg text-emerald-100 hover:text-white hover:bg-brand-800 transition flex items-center space-x-3 min-h-[44px]">
+          <i class="fa-solid ${item.icon} w-5 text-center"></i>
+          <span>${item.label}</span>
+        </button>
+      `).join('');
+    }
+
+    function navigateTo(viewId) {
+      document.querySelectorAll('#desktop-nav button').forEach(b => b.classList.remove('bg-white/20', 'text-white', 'font-semibold'));
+      const activeBtn = document.getElementById(`nav-btn-${viewId}`);
+      if(activeBtn) activeBtn.classList.add('bg-white/20', 'text-white', 'font-semibold');
+
+      const viewContent = document.getElementById('view-content');
+      viewContent.innerHTML = `
+        <div class="animate-pulse space-y-4">
+          <div class="h-8 bg-slate-200 rounded-lg w-1/4"></div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="h-28 bg-slate-200 rounded-xl"></div>
+            <div class="h-28 bg-slate-200 rounded-xl"></div>
+            <div class="h-28 bg-slate-200 rounded-xl"></div>
+          </div>
+          <div class="h-64 bg-slate-200 rounded-xl"></div>
+        </div>
+      `;
+
+      if (viewId === 'admin-dashboard') loadAdminDashboard();
+      else if (viewId === 'admin-siswa') loadAdminSiswa();
+      else if (viewId === 'admin-walikelas') loadAdminWaliKelas();
+      else if (viewId === 'admin-pertanyaan') loadAdminPertanyaan();
+      else if (viewId === 'admin-periode') loadAdminPeriode();
+      else if (viewId === 'wali-dashboard') loadWaliDashboard();
+      else if (viewId === 'wali-observasi') loadWaliObservasi();
+      else if (viewId === 'wali-rekap') loadWaliRekap();
+      else if (viewId === 'siswa-dashboard') loadSiswaDashboard();
+      else if (viewId === 'siswa-diri') loadSiswaDiri();
+      else if (viewId === 'siswa-teman') loadSiswaTeman();
+    }
+
+    function formatScore(num) {
+      if (!num || num === 0) return "-";
+      if (Number.isInteger(num)) return num.toString();
+      return num.toFixed(1).replace('.', ',');
+    }
+
+    function getPredicate(num) {
+      if (num <= 1.33) return { text: 'Kurang', color: 'bg-rose-100 text-rose-800 border-rose-300' };
+      if (num <= 2.33) return { text: 'Cukup', color: 'bg-amber-100 text-amber-800 border-amber-300' };
+      if (num <= 3.33) return { text: 'Baik', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+      return { text: 'Sangat Baik', color: 'bg-teal-100 text-teal-800 border-teal-300' };
+    }
+
+    // Fungsi Pengganti Kata "Saya" dengan Nama Siswa Target
+    function getPersonQuestionText(teks, namaTarget) {
+      let formatted = teks.replace(/^Saya\s+/i, `${namaTarget} `);
+      formatted = formatted.replace(/\bsaya\b/gi, namaTarget);
+      return formatted;
+    }
+
+    // Admin Views
+    async function loadAdminDashboard() {
+      const res = await apiRequest('getAdminDashboard');
+      const content = document.getElementById('view-content');
+
+      if (!res.success) {
+        content.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">Gagal memuat dashboard: ${res.message}</div>`;
+        return;
+      }
+
+      const d = res.data;
+      content.innerHTML = `
+        <div class="space-y-6">
+          <h2 class="text-xl font-bold text-slate-800">Dashboard Administrator</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500 font-semibold uppercase">Total Siswa</p>
+                <h3 class="text-2xl font-black text-slate-800 mt-1">${d.totalSiswa || 0}</h3>
+              </div>
+              <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-user-graduate"></i></div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500 font-semibold uppercase">Wali Kelas</p>
+                <h3 class="text-2xl font-black text-slate-800 mt-1">${d.totalWali || 0}</h3>
+              </div>
+              <div class="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-chalkboard-user"></i></div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500 font-semibold uppercase">Bank Pertanyaan</p>
+                <h3 class="text-2xl font-black text-slate-800 mt-1">${state.pertanyaan.length}</h3>
+              </div>
+              <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-clipboard-question"></i></div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500 font-semibold uppercase">Status Periode</p>
+                <h3 class="text-lg font-bold text-emerald-600 mt-1">${state.activePeriode ? state.activePeriode.status : '-'}</h3>
+              </div>
+              <div class="w-12 h-12 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-toggle-on"></i></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function loadAdminSiswa() {
+      const res = await apiRequest('getSiswaList');
+      const content = document.getElementById('view-content');
+
+      if (!res.success) {
+        content.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">Gagal memuat data siswa: ${res.message}</div>`;
+        return;
+      }
+
+      state.siswaList = res.data || [];
+      content.innerHTML = `
+        <div class="space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 class="text-xl font-bold text-slate-800">Kelola Data Siswa</h2>
+            <button onclick="showSiswaModal()" class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-2 min-h-[44px]">
+              <i class="fa-solid fa-plus"></i> Tambah Siswa Baru
+            </button>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                    <th class="p-4">NISN</th>
+                    <th class="p-4">Nama Lengkap</th>
+                    <th class="p-4">Kelas</th>
+                    <th class="p-4">Username</th>
+                    <th class="p-4 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  ${state.siswaList.length === 0 ? `<tr><td colspan="5" class="p-6 text-center text-slate-400">Belum ada data siswa</td></tr>` : state.siswaList.map(s => `
+                    <tr class="hover:bg-slate-50 transition">
+                      <td class="p-4 font-mono text-slate-600">${s.nisn}</td>
+                      <td class="p-4 font-bold text-slate-800">${s.nama}</td>
+                      <td class="p-4"><span class="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-semibold">${s.kelas}</span></td>
+                      <td class="p-4 text-slate-500">${s.username}</td>
+                      <td class="p-4 text-center space-x-2">
+                        <button onclick="showSiswaModal('${s.nisn}')" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteSiswa('${s.nisn}')" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function showSiswaModal(nisnEdit = null) {
+      const s = nisnEdit ? state.siswaList.find(item => item.nisn === nisnEdit) : null;
+      const isEdit = !!s;
+
+      const html = `
+        <div class="space-y-3 text-left pt-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">NISN</label>
+            <input type="text" id="form-siswa-nisn" value="${s ? s.nisn : ''}" ${isEdit ? 'readonly' : ''} class="w-full p-2.5 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-brand-500" placeholder="10 Digit NISN" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Nama Lengkap</label>
+            <input type="text" id="form-siswa-nama" value="${s ? s.nama : ''}" class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500" placeholder="Nama Siswa" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Kelas</label>
+            <input type="text" id="form-siswa-kelas" value="${s ? s.kelas : 'VII A'}" class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500" placeholder="Contoh: VII A" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Username</label>
+            <input type="text" id="form-siswa-username" value="${s ? s.username : ''}" class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500" placeholder="Username Login" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Password ${isEdit ? '(Kosongkan jika tidak diubah)' : ''}</label>
+            <input type="password" id="form-siswa-password" class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500" placeholder="••••••••" />
+          </div>
+        </div>
+      `;
+
+      showModal(isEdit ? "Edit Data Siswa" : "Tambah Siswa Baru", html, async () => {
+        const nisn = document.getElementById('form-siswa-nisn').value.trim();
+        const nama = document.getElementById('form-siswa-nama').value.trim();
+        const kelas = document.getElementById('form-siswa-kelas').value.trim();
+        const username = document.getElementById('form-siswa-username').value.trim();
+        const password = document.getElementById('form-siswa-password').value;
+
+        if(!nisn || !nama || !username) {
+          showToast("Mohon lengkapi seluruh field yang wajib!", "warning");
+          return false;
         }
 
-        function toggleMobileMenu() {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('mobile-overlay');
-            if (sidebar.classList.contains('-translate-x-full')) {
-                sidebar.classList.remove('-translate-x-full');
-                overlay.classList.remove('hidden');
-            } else {
-                sidebar.classList.add('-translate-x-full');
-                overlay.classList.add('hidden');
-            }
+        showLoading("Menyimpan Siswa...");
+        const res = await apiRequest('saveSiswa', { nisn, nama, kelas, username, password, isEdit });
+        hideLoading();
+
+        if (res.success) {
+          showToast("Data siswa berhasil disimpan!", "success");
+          loadAdminSiswa();
+        } else {
+          showToast(res.message || "Gagal menyimpan data siswa.", "error");
+        }
+        return true;
+      });
+    }
+
+    function deleteSiswa(nisn) {
+      showModal("Hapus Siswa", "<p>Apakah Anda yakin ingin menghapus data siswa ini secara permanen?</p>", async () => {
+        showLoading("Menghapus data...");
+        const res = await apiRequest('deleteSiswa', { nisn });
+        hideLoading();
+        if (res.success) {
+          showToast("Siswa berhasil dihapus!", "success");
+          loadAdminSiswa();
+        } else {
+          showToast(res.message || "Gagal menghapus siswa.", "error");
+        }
+      });
+    }
+
+    async function loadAdminWaliKelas() {
+      const res = await apiRequest('getWaliList');
+      const content = document.getElementById('view-content');
+
+      if (!res.success) {
+        content.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">Gagal memuat wali kelas: ${res.message}</div>`;
+        return;
+      }
+
+      state.waliList = res.data || [];
+      content.innerHTML = `
+        <div class="space-y-4">
+          <div class="flex justify-between items-center">
+            <h2 class="text-xl font-bold text-slate-800">Kelola Wali Kelas</h2>
+            <button onclick="showWaliModal()" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition flex items-center gap-2 min-h-[44px]">
+              <i class="fa-solid fa-plus"></i> Tambah Wali Kelas
+            </button>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="bg-slate-50 text-slate-600 font-semibold border-b">
+                  <th class="p-4">ID Wali</th>
+                  <th class="p-4">Nama Wali Kelas</th>
+                  <th class="p-4">Kelas Binaan</th>
+                  <th class="p-4">Username</th>
+                  <th class="p-4 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                ${state.waliList.length === 0 ? `<tr><td colspan="5" class="p-6 text-center text-slate-400">Belum ada wali kelas</td></tr>` : state.waliList.map(w => `
+                  <tr>
+                    <td class="p-4 font-mono">${w.id}</td>
+                    <td class="p-4 font-bold text-slate-800">${w.nama}</td>
+                    <td class="p-4"><span class="px-2.5 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-bold">${w.kelasBinaan}</span></td>
+                    <td class="p-4 text-slate-500">${w.username}</td>
+                    <td class="p-4 text-center space-x-2">
+                      <button onclick="showWaliModal('${w.id}')" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"><i class="fa-solid fa-pen"></i></button>
+                      <button onclick="deleteWali('${w.id}')" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function showWaliModal(idEdit = null) {
+      const w = idEdit ? state.waliList.find(item => item.id === idEdit) : null;
+      const isEdit = !!w;
+
+      const html = `
+        <div class="space-y-3 text-left pt-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">ID Wali</label>
+            <input type="text" id="form-wali-id" value="${w ? w.id : 'W0' + (state.waliList.length + 1)}" ${isEdit ? 'readonly' : ''} class="w-full p-2.5 border rounded-lg text-sm bg-slate-50 outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Nama Wali Kelas</label>
+            <input type="text" id="form-wali-nama" value="${w ? w.nama : ''}" class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500" placeholder="Ustadz / Ustadzah" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Kelas Binaan</label>
+            <input type="text" id="form-wali-kelas" value="${w ? w.kelasBinaan : ''}" class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500" placeholder="Contoh: VII A" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Username</label>
+            <input type="text" id="form-wali-username" value="${w ? w.username : ''}" class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500" placeholder="Username Login" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Password ${isEdit ? '(Kosongkan jika tidak diubah)' : ''}</label>
+            <input type="password" id="form-wali-password" class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500" placeholder="••••••••" />
+          </div>
+        </div>
+      `;
+
+      showModal(isEdit ? "Edit Wali Kelas" : "Tambah Wali Kelas", html, async () => {
+        const id = document.getElementById('form-wali-id').value.trim();
+        const nama = document.getElementById('form-wali-nama').value.trim();
+        const kelasBinaan = document.getElementById('form-wali-kelas').value.trim();
+        const username = document.getElementById('form-wali-username').value.trim();
+        const password = document.getElementById('form-wali-password').value;
+
+        if(!nama || !kelasBinaan || !username) {
+          showToast("Lengkapi seluruh field wajib!", "warning");
+          return false;
         }
 
-        // --- API COMMUNICATIONS (ANTI-CORS PATTERN) ---
-        async function fetchAPI(action, payload = {}) {
-            if (API_URL.includes("YOUR_API_ID_HERE")) {
-                showToast("URL API belum dikonfigurasi!", "error");
-                throw new Error("API_URL not set");
-            }
+        showLoading("Menyimpan Wali Kelas...");
+        const res = await apiRequest('saveWali', { id, nama, kelasBinaan, username, password, isEdit });
+        hideLoading();
 
-            const requestData = { action: action, payload: payload };
+        if (res.success) {
+          showToast("Data wali kelas berhasil disimpan!", "success");
+          loadAdminWaliKelas();
+        } else {
+          showToast(res.message || "Gagal menyimpan wali kelas.", "error");
+        }
+        return true;
+      });
+    }
+
+    function deleteWali(id) {
+      showModal("Hapus Wali Kelas", "<p>Apakah Anda yakin ingin menghapus data wali kelas ini?</p>", async () => {
+        showLoading("Menghapus data...");
+        const res = await apiRequest('deleteWali', { id });
+        hideLoading();
+        if (res.success) {
+          showToast("Wali kelas berhasil dihapus!", "success");
+          loadAdminWaliKelas();
+        } else {
+          showToast(res.message || "Gagal menghapus wali kelas.", "error");
+        }
+      });
+    }
+
+    async function loadAdminPertanyaan() {
+      const content = document.getElementById('view-content');
+      content.innerHTML = `
+        <div class="space-y-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h2 class="text-xl font-bold text-slate-800">Bank 24 Pertanyaan Karakter BaKu</h2>
+              <p class="text-xs text-slate-500">Kelola seluruh indikator pertanyaan pilar Baik dan Kuat.</p>
+            </div>
+            <button onclick="showPertanyaanModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2 min-h-[44px]">
+              <i class="fa-solid fa-plus"></i> Tambah Pertanyaan
+            </button>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div class="max-h-[550px] overflow-y-auto">
+              <table class="w-full text-left border-collapse text-sm">
+                <thead class="sticky top-0 bg-slate-100 text-slate-700 font-semibold z-10">
+                  <tr>
+                    <th class="p-3">ID</th>
+                    <th class="p-3">Pilar</th>
+                    <th class="p-3">Fokus</th>
+                    <th class="p-3">Karakter</th>
+                    <th class="p-3">Pertanyaan</th>
+                    <th class="p-3 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  ${state.pertanyaan.map(q => `
+                    <tr class="hover:bg-slate-50 transition">
+                      <td class="p-3 font-mono font-bold text-slate-500">${q.id_q}</td>
+                      <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold ${q.pilar==='Baik'?'bg-emerald-100 text-emerald-800':'bg-blue-100 text-blue-800'} rounded">${q.pilar}</span></td>
+                      <td class="p-3 text-xs font-semibold text-slate-600">${q.fokus}</td>
+                      <td class="p-3 font-bold text-slate-800">${q.karakter}</td>
+                      <td class="p-3 text-slate-700">"${q.teks}"</td>
+                      <td class="p-3 text-center space-x-1 whitespace-nowrap">
+                        <button onclick="showPertanyaanModal('${q.id_q}')" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deletePertanyaan('${q.id_q}')" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md transition"><i class="fa-solid fa-trash"></i></button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function showPertanyaanModal(idEdit = null) {
+      const q = idEdit ? state.pertanyaan.find(item => item.id_q === idEdit) : null;
+      const isEdit = !!q;
+
+      const html = `
+        <div class="space-y-3 text-left pt-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">ID Pertanyaan</label>
+            <input type="text" id="form-q-id" value="${q ? q.id_q : 'q' + (state.pertanyaan.length + 1)}" ${isEdit ? 'readonly' : ''} class="w-full p-2.5 border rounded-lg text-sm bg-slate-50 outline-none" />
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Pilar</label>
+              <select id="form-q-pilar" class="w-full p-2.5 border rounded-lg text-sm bg-white outline-none">
+                <option value="Baik" ${q && q.pilar === 'Baik' ? 'selected' : ''}>Baik</option>
+                <option value="Kuat" ${q && q.pilar === 'Kuat' ? 'selected' : ''}>Kuat</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Fokus</label>
+              <select id="form-q-fokus" class="w-full p-2.5 border rounded-lg text-sm bg-white outline-none">
+                <option value="Jaga Lisan" ${q && q.fokus === 'Jaga Lisan' ? 'selected' : ''}>Jaga Lisan</option>
+                <option value="BR3T" ${q && q.fokus === 'BR3T' ? 'selected' : ''}>BR3T</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Karakter Target</label>
+            <select id="form-q-karakter" class="w-full p-2.5 border rounded-lg text-sm bg-white outline-none">
+              <option value="Ikhlas" ${q && q.karakter === 'Ikhlas' ? 'selected' : ''}>Ikhlas</option>
+              <option value="Jujur" ${q && q.karakter === 'Jujur' ? 'selected' : ''}>Jujur</option>
+              <option value="Tawadhu" ${q && q.karakter === 'Tawadhu' ? 'selected' : ''}>Tawadhu</option>
+              <option value="Berani" ${q && q.karakter === 'Berani' ? 'selected' : ''}>Berani</option>
+              <option value="Disiplin" ${q && q.karakter === 'Disiplin' ? 'selected' : ''}>Disiplin</option>
+              <option value="Tangguh" ${q && q.karakter === 'Tangguh' ? 'selected' : ''}>Tangguh</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Teks Pertanyaan</label>
+            <textarea id="form-q-teks" rows="3" class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Teks pertanyaan...">${q ? q.teks : ''}</textarea>
+          </div>
+        </div>
+      `;
+
+      showModal(isEdit ? "Edit Pertanyaan" : "Tambah Pertanyaan Baru", html, async () => {
+        const id_q = document.getElementById('form-q-id').value.trim();
+        const pilar = document.getElementById('form-q-pilar').value;
+        const fokus = document.getElementById('form-q-fokus').value;
+        const karakter = document.getElementById('form-q-karakter').value;
+        const teks = document.getElementById('form-q-teks').value.trim();
+
+        if(!teks) {
+          showToast("Teks pertanyaan tidak boleh kosong!", "warning");
+          return false;
+        }
+
+        showLoading("Menyimpan Pertanyaan...");
+        const res = await apiRequest('savePertanyaan', { id_q, pilar, fokus, karakter, teks, isEdit });
+        hideLoading();
+
+        if (res.success) {
+          showToast("Pertanyaan berhasil disimpan!", "success");
+          await loadInitialData();
+          loadAdminPertanyaan();
+        } else {
+          showToast(res.message || "Gagal menyimpan pertanyaan.", "error");
+        }
+        return true;
+      });
+    }
+
+    function deletePertanyaan(id_q) {
+      showModal("Hapus Pertanyaan", "<p>Apakah Anda yakin ingin menghapus pertanyaan ini?</p>", async () => {
+        showLoading("Menghapus data...");
+        const res = await apiRequest('deletePertanyaan', { id_q });
+        hideLoading();
+        if (res.success) {
+          showToast("Pertanyaan berhasil dihapus!", "success");
+          await loadInitialData();
+          loadAdminPertanyaan();
+        } else {
+          showToast(res.message || "Gagal menghapus pertanyaan.", "error");
+        }
+      });
+    }
+
+    async function loadAdminPeriode() {
+      const res = await apiRequest('getPeriodeList');
+      const content = document.getElementById('view-content');
+
+      if (!res.success) {
+        content.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">Gagal memuat periode: ${res.message}</div>`;
+        return;
+      }
+
+      state.periodeList = res.data || [];
+      content.innerHTML = `
+        <div class="space-y-6">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h2 class="text-xl font-bold text-slate-800">Pengaturan Periode Penilaian</h2>
+              <p class="text-xs text-slate-500">Konfigurasi pilar aktif (Baik/Kuat) dan fokus karakter setiap bulan.</p>
+            </div>
+            <button onclick="showPeriodeModal()" class="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition flex items-center gap-2 min-h-[44px]">
+              <i class="fa-solid fa-plus"></i> Tambah Periode Baru
+            </button>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div class="p-4 border-b bg-slate-50 font-bold text-sm text-slate-700">Daftar Periode Tersedia</div>
+            <div class="divide-y divide-slate-100">
+              ${state.periodeList.map(p => {
+                const isActive = state.activePeriode && state.activePeriode.id === p.id;
+                return `
+                  <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isActive ? 'bg-emerald-50/50' : ''}">
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <h4 class="font-bold text-slate-800">${p.tahunAjaran} - Bulan ${p.bulan}</h4>
+                        <span class="px-2 py-0.5 text-xs font-bold rounded ${p.semester === 'Ganjil' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}">Semester ${p.semester}</span>
+                        ${isActive ? `<span class="px-2 py-0.5 text-xs font-bold bg-emerald-600 text-white rounded">AKTIF</span>` : ''}
+                      </div>
+                      <div class="text-xs text-slate-500 mt-1.5 flex flex-wrap gap-2">
+                        <span class="bg-slate-100 px-2 py-0.5 rounded font-semibold text-slate-700">Pilar: ${p.pilarBaik ? 'Baik ' : ''}${p.pilarKuat ? 'Kuat' : ''}</span>
+                        <span class="bg-slate-100 px-2 py-0.5 rounded font-semibold text-slate-700">Fokus: ${p.fokusJagaLisan ? 'Jaga Lisan ' : ''}${p.fokusBR3T ? 'BR3T' : ''}</span>
+                        <span>• Status: <strong>${p.status}</strong></span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      ${!isActive ? `<button onclick="setActivePeriode('${p.id}')" class="px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 transition min-h-[44px]">Set Aktif</button>` : ''}
+                      <button onclick="togglePeriodeStatus('${p.id}', '${p.status === 'Buka' ? 'Tutup' : 'Buka'}')" class="px-3 py-1.5 ${p.status === 'Buka' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-teal-600 hover:bg-teal-700'} text-white text-xs font-semibold rounded-lg transition min-h-[44px]">
+                        ${p.status === 'Buka' ? 'Tutup Akses' : 'Buka Akses'}
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function showPeriodeModal() {
+      const html = `
+        <div class="space-y-4 text-left pt-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Tahun Ajaran</label>
+            <input type="text" id="form-p-tahun" value="2025/2026" class="w-full p-2.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" placeholder="2025/2026" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Pilih Bulan</label>
+            <select id="form-p-bulan" onchange="document.getElementById('form-p-semester-preview').innerText = ['Juli','Agustus','September','Oktober','November','Desember'].includes(this.value) ? 'Ganjil' : 'Genap'" class="w-full p-2.5 border rounded-lg text-sm bg-white outline-none">
+              ${['Juli','Agustus','September','Oktober','November','Desember','Januari','Februari','Maret','April','Mei','Juni'].map(b => `<option value="${b}">${b}</option>`).join('')}
+            </select>
+          </div>
+          <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
+            Semester Otomatis: <strong id="form-p-semester-preview" class="text-emerald-700 font-bold">Ganjil</strong>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-2">Pilar Aktif</label>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <label class="flex items-center gap-2 p-2.5 border rounded-lg cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" id="form-p-pilar-baik" checked class="w-4 h-4 text-emerald-600 rounded" />
+                <span class="font-bold text-slate-700">Pilar BAIK</span>
+              </label>
+              <label class="flex items-center gap-2 p-2.5 border rounded-lg cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" id="form-p-pilar-kuat" checked class="w-4 h-4 text-emerald-600 rounded" />
+                <span class="font-bold text-slate-700">Pilar KUAT</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-2">Fokus Penilaian</label>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <label class="flex items-center gap-2 p-2.5 border rounded-lg cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" id="form-p-jl" checked class="w-4 h-4 text-emerald-600 rounded" />
+                <span class="font-semibold text-slate-700">Jaga Lisan</span>
+              </label>
+              <label class="flex items-center gap-2 p-2.5 border rounded-lg cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" id="form-p-br3t" checked class="w-4 h-4 text-emerald-600 rounded" />
+                <span class="font-semibold text-slate-700">BR3T</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      `;
+
+      showModal("Tambah Periode Baru", html, async () => {
+        const tahunAjaran = document.getElementById('form-p-tahun').value.trim();
+        const bulan = document.getElementById('form-p-bulan').value;
+        const ganjilMonths = ['Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        const semester = ganjilMonths.includes(bulan) ? 'Ganjil' : 'Genap';
+        
+        const pilarBaik = document.getElementById('form-p-pilar-baik').checked;
+        const pilarKuat = document.getElementById('form-p-pilar-kuat').checked;
+        const fokusJagaLisan = document.getElementById('form-p-jl').checked;
+        const fokusBR3T = document.getElementById('form-p-br3t').checked;
+
+        if(!tahunAjaran) {
+          showToast("Tahun ajaran wajib diisi!", "warning");
+          return false;
+        }
+
+        if(!pilarBaik && !pilarKuat) {
+          showToast("Minimal salah satu Pilar (Baik/Kuat) harus aktif!", "warning");
+          return false;
+        }
+
+        if(!fokusJagaLisan && !fokusBR3T) {
+          showToast("Minimal salah satu Fokus (Jaga Lisan/BR3T) harus aktif!", "warning");
+          return false;
+        }
+
+        showLoading("Menyimpan Periode...");
+        const res = await apiRequest('addPeriode', { 
+          tahunAjaran, 
+          bulan, 
+          semester, 
+          pilarBaik, 
+          pilarKuat, 
+          fokusJagaLisan, 
+          fokusBR3T 
+        });
+        hideLoading();
+
+        if (res.success) {
+          showToast("Periode berhasil ditambahkan!", "success");
+          await loadInitialData();
+          loadAdminPeriode();
+        } else {
+          showToast(res.message || "Gagal menambah periode.", "error");
+        }
+        return true;
+      });
+    }
+
+    async function setActivePeriode(id) {
+      showLoading("Mengaktifkan periode...");
+      const res = await apiRequest('setActivePeriode', { id });
+      hideLoading();
+      if (res.success) {
+        showToast("Periode aktif berhasil diperbarui!", "success");
+        await loadInitialData();
+        loadAdminPeriode();
+      } else {
+        showToast(res.message || "Gagal mengubah periode aktif.", "error");
+      }
+    }
+
+    async function togglePeriodeStatus(id, newStatus) {
+      showLoading("Mengubah status...");
+      const res = await apiRequest('updatePeriodeStatus', { id, status: newStatus });
+      hideLoading();
+      if (res.success) {
+        showToast(`Status periode berhasil diubah menjadi: ${newStatus}`, "success");
+        await loadInitialData();
+        loadAdminPeriode();
+      } else {
+        showToast(res.message || "Gagal mengubah status periode.", "error");
+      }
+    }
+
+    // Wali Kelas Views
+    async function loadWaliDashboard() {
+      const res = await apiRequest('getWaliDashboard');
+      const content = document.getElementById('view-content');
+
+      if (!res.success) {
+        content.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">Gagal memuat dashboard: ${res.message}</div>`;
+        return;
+      }
+
+      const d = res.data;
+      content.innerHTML = `
+        <div class="space-y-6">
+          <div class="bg-gradient-to-r from-emerald-800 to-teal-800 text-white p-6 rounded-2xl shadow-md">
+            <h2 class="text-2xl font-bold">Dashboard Wali Kelas - ${state.currentUser.kelasBinaan}</h2>
+            <p class="text-emerald-200 text-sm mt-1">Selamat datang, ${state.currentUser.nama}</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500 font-semibold uppercase">Total Siswa Binaan</p>
+                <h3 class="text-2xl font-black text-slate-800 mt-1">${d.totalSiswa || 0}</h3>
+              </div>
+              <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-users"></i></div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500 font-semibold uppercase">Belum Diobservasi</p>
+                <h3 class="text-2xl font-black text-rose-600 mt-1">${d.unobservedList ? d.unobservedList.length : 0} Siswa</h3>
+              </div>
+              <div class="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-clock"></i></div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h3 class="font-bold text-slate-800 mb-3">Siswa Perlu Observasi</h3>
+            ${(!d.unobservedList || d.unobservedList.length === 0) ? `
+              <div class="p-4 bg-emerald-50 text-emerald-800 rounded-xl text-sm font-medium flex items-center gap-2">
+                <i class="fa-solid fa-circle-check text-lg"></i> Seluruh siswa kelas ${state.currentUser.kelasBinaan} sudah diobservasi untuk periode ini!
+              </div>
+            ` : `
+              <div class="space-y-2">
+                ${d.unobservedList.map(s => `
+                  <div class="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                    <span class="font-bold text-slate-800 text-sm">${s.nama} (${s.nisn})</span>
+                    <button onclick="openObservasiForSiswa('${s.nisn}')" class="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 min-h-[44px]">Isi Observasi</button>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    async function loadWaliObservasi() {
+      const res = await apiRequest('getSiswaByKelas', { kelas: state.currentUser.kelasBinaan });
+      const content = document.getElementById('view-content');
+
+      if (!res.success) {
+        content.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">Gagal memuat siswa: ${res.message}</div>`;
+        return;
+      }
+
+      const siswaList = res.data || [];
+      content.innerHTML = `
+        <div class="space-y-6">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h2 class="text-xl font-bold text-slate-800">Form Observasi Wali Kelas</h2>
+              <p class="text-xs text-slate-500">Pilih siswa untuk melakukan observasi indikator karakter BaKu aktif.</p>
+            </div>
+            <select id="select-siswa-observasi" onchange="fetchFormObservasi(this.value)" class="p-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="">-- Pilih Siswa --</option>
+              ${siswaList.map(s => `<option value="${s.nisn}">${s.nama} (${s.nisn})</option>`).join('')}
+            </select>
+          </div>
+
+          <div id="observasi-form-container" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm text-center text-slate-500 py-12">
+            <i class="fa-solid fa-hand-pointer text-4xl text-slate-300 mb-2"></i>
+            <p class="text-sm font-medium">Silakan pilih salah satu siswa dari dropdown di atas untuk memulai pengisian.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function openObservasiForSiswa(nisn) {
+      navigateTo('wali-observasi');
+      setTimeout(() => {
+        const select = document.getElementById('select-siswa-observasi');
+        if (select) {
+          select.value = nisn;
+          fetchFormObservasi(nisn);
+        }
+      }, 300);
+    }
+
+    async function fetchFormObservasi(nisn) {
+      const container = document.getElementById('observasi-form-container');
+      if(!nisn) {
+        container.innerHTML = `<div class="text-center text-slate-500 py-12"><p>Silakan pilih siswa terlebih dahulu.</p></div>`;
+        return;
+      }
+
+      showLoading("Memuat instrumen observasi...");
+      const res = await apiRequest('getObservasiData', { nisn });
+      hideLoading();
+
+      if (!res.success) {
+        container.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs">${res.message || 'Gagal memuat data'}</div>`;
+        return;
+      }
+
+      const existing = (res.data && res.data.answers) ? res.data.answers : {};
+      const siswa = (res.data && res.data.siswa) ? res.data.siswa : { nama: 'Siswa', nisn, kelas: state.currentUser.kelasBinaan };
+      
+      const currentQuestions = (res.data && res.data.pertanyaan && res.data.pertanyaan.length > 0) 
+        ? res.data.pertanyaan 
+        : ((state.activePertanyaan && state.activePertanyaan.length > 0) ? state.activePertanyaan : state.pertanyaan);
+
+      if (!currentQuestions || currentQuestions.length === 0) {
+        container.innerHTML = `<div class="p-6 text-center text-amber-700 bg-amber-50 rounded-xl border border-amber-200 text-xs font-semibold">Tidak ada pertanyaan aktif pada periode ini. Silakan periksa pengaturan periode di Admin.</div>`;
+        return;
+      }
+
+      container.innerHTML = `
+        <form onsubmit="submitObservasi(event, '${nisn}')" class="space-y-6 text-left">
+          <div class="border-b pb-4">
+            <h3 class="font-bold text-lg text-slate-800">Mengobservasi: ${siswa.nama}</h3>
+            <p class="text-xs text-slate-500">NISN: ${siswa.nisn} | Kelas: ${siswa.kelas}</p>
+          </div>
+
+          <div class="space-y-4">
+            ${currentQuestions.map((q, idx) => {
+              const selectedVal = existing[q.id_q] || 0;
+              const obsText = getPersonQuestionText(q.teks, siswa.nama);
+              return `
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                  <p class="font-medium text-slate-800 text-sm mb-3"><span class="font-bold text-slate-900 mr-1">${idx + 1}.</span> ${obsText}</p>
+                  
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    ${[
+                      { val: 1, label: 'Tidak Pernah' },
+                      { val: 2, label: 'Kadang-kadang' },
+                      { val: 3, label: 'Sering' },
+                      { val: 4, label: 'Selalu' }
+                    ].map(opt => `
+                      <label class="cursor-pointer border rounded-lg p-2.5 text-center text-xs font-semibold transition hover:bg-emerald-50 has-[:checked]:bg-brand-600 has-[:checked]:text-white has-[:checked]:border-brand-600">
+                        <input type="radio" name="ans_${q.id_q}" value="${opt.val}" ${selectedVal == opt.val ? 'checked' : ''} required class="sr-only" />
+                        ${opt.label}
+                      </label>
+                    `).join('')}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="pt-4 border-t flex justify-end">
+            <button type="submit" class="px-6 py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 shadow-md transition min-h-[44px]">
+              Simpan Hasil Observasi
+            </button>
+          </div>
+        </form>
+      `;
+    }
+
+    async function submitObservasi(e, nisn) {
+      e.preventDefault();
+      showLoading("Menyimpan Observasi...");
+      
+      const formData = new FormData(e.target);
+      const answers = {};
+      const currentQuestions = (state.activePertanyaan && state.activePertanyaan.length > 0) ? state.activePertanyaan : state.pertanyaan;
+
+      currentQuestions.forEach(q => {
+        answers[q.id_q] = formData.get(`ans_${q.id_q}`);
+      });
+
+      const res = await apiRequest('submitObservasi', { targetNisn: nisn, answers });
+      hideLoading();
+
+      if (res.success) {
+        showToast("Observasi berhasil disimpan ke database!", "success");
+        loadWaliDashboard();
+      } else {
+        showToast(res.message || "Gagal menyimpan observasi.", "error");
+      }
+    }
+
+    async function loadWaliRekap() {
+      showLoading("Menghitung rekapitulasi nilai...");
+      const res = await apiRequest('getRekapKelas', { 
+        kelas: state.currentUser.kelasBinaan,
+        semester: state.rekapFilter.semester,
+        fokus: state.rekapFilter.fokus
+      });
+      hideLoading();
+
+      const content = document.getElementById('view-content');
+      if (!res.success) {
+        content.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">Gagal memuat rekap nilai: ${res.message}</div>`;
+        return;
+      }
+
+      state.rekapData = res.data.matrix || [];
+      const currentSemester = res.data.semester;
+      const currentFokus = res.data.fokus;
+
+      content.innerHTML = `
+        <div class="space-y-6">
+          <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-slate-800">Rekap Nilai Karakter - ${state.currentUser.kelasBinaan}</h2>
+              <p class="text-xs text-slate-500">Nilai gabungan Penilaian Diri, Penilaian Antar Teman, dan Observasi Wali Kelas.</p>
+            </div>
             
-            try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify(requestData)
-                });
+            <!-- TOOLBAR FILTER & EXPORT -->
+            <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+              <div class="flex items-center bg-white border border-slate-300 rounded-lg p-1 text-xs">
+                <span class="px-2 text-slate-500 font-semibold">Semester:</span>
+                <button onclick="changeRekapFilter('semester', 'Ganjil')" class="px-3 py-1.5 rounded-md font-bold transition ${currentSemester === 'Ganjil' ? 'bg-amber-600 text-white' : 'text-slate-600 hover:bg-slate-100'}">Ganjil</button>
+                <button onclick="changeRekapFilter('semester', 'Genap')" class="px-3 py-1.5 rounded-md font-bold transition ${currentSemester === 'Genap' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}">Genap</button>
+              </div>
 
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const result = await response.json();
-                
-                if (!result.success && result.message === "Invalid Session") {
-                    showToast("Sesi habis, silakan login kembali", "error");
-                    forceLogout();
-                    return { success: false, data: null };
-                }
-                
-                return result;
-            } catch (error) {
-                console.error("API Error:", error);
-                showToast("Koneksi ke server gagal", "error");
-                return { success: false, message: error.message };
-            }
-        }
+              <div class="flex items-center bg-white border border-slate-300 rounded-lg p-1 text-xs">
+                <span class="px-2 text-slate-500 font-semibold">Fokus:</span>
+                <button onclick="changeRekapFilter('fokus', 'Semua')" class="px-2.5 py-1.5 rounded-md font-bold transition ${currentFokus === 'Semua' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'}">Semua</button>
+                <button onclick="changeRekapFilter('fokus', 'Jaga Lisan')" class="px-2.5 py-1.5 rounded-md font-bold transition ${currentFokus === 'Jaga Lisan' ? 'bg-emerald-700 text-white' : 'text-slate-600 hover:bg-slate-100'}">Jaga Lisan</button>
+                <button onclick="changeRekapFilter('fokus', 'BR3T')" class="px-2.5 py-1.5 rounded-md font-bold transition ${currentFokus === 'BR3T' ? 'bg-teal-700 text-white' : 'text-slate-600 hover:bg-slate-100'}">BR3T</button>
+              </div>
 
-        // --- AUTHENTICATION ---
-        async function handleLogin(e) {
-            e.preventDefault();
-            const username = document.getElementById('login-username').value.trim();
-            const password = document.getElementById('login-password').value;
-
-            showLoading('Mencocokkan kredensial...');
-            
-            const res = await fetchAPI('login', { username, password });
-            hideLoading();
-
-            if (res.success) {
-                currentUser = res.data;
-                sessionStorage.setItem('user', JSON.stringify(currentUser));
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('main-layout').classList.remove('hidden');
-                
-                masterDataCache.loaded = false; 
-                initApp();
-                showToast(`Selamat datang, ${currentUser.nama}`);
-            } else {
-                showToast(res.message || 'Login Gagal', 'error');
-            }
-        }
-
-        function confirmLogout() {
-            showModal('Konfirmasi Keluar', 'Yakin ingin keluar?', 'Keluar', () => forceLogout());
-        }
-
-        function forceLogout() {
-            sessionStorage.removeItem('user');
-            currentUser = null;
-            document.getElementById('main-layout').classList.add('hidden');
-            document.getElementById('login-screen').classList.remove('hidden');
-            document.getElementById('login-form').reset();
-            if(!document.getElementById('sidebar').classList.contains('-translate-x-full')) toggleMobileMenu();
-        }
-
-        // --- APP INITIALIZATION ---
-        async function initApp() {
-            document.getElementById('user-display-name').textContent = currentUser.nama;
-            document.getElementById('user-display-role').textContent = currentUser.role.toUpperCase() + (currentUser.nama_kelas ? ` - ${currentUser.nama_kelas}` : '');
-            
-            renderNavMenu();
-            
-            if (currentUser.role === 'siswa') navigate('dashboard-siswa');
-            else if (currentUser.role === 'wali') navigate('dashboard-wali');
-            else if (currentUser.role === 'admin') navigate('dashboard-admin');
-
-            if (!masterDataCache.loaded) loadMasterData();
-        }
-
-        async function loadMasterData() {
-            const action = currentUser.role === 'siswa' ? 'getMasterSiswa' : 'getMasterWaliAdmin';
-            const res = await fetchAPI(action, { userId: currentUser.id_user, idKelas: currentUser.id_kelas });
-            
-            if (res.success) {
-                masterDataCache = { ...res.data, loaded: true };
-                if(activePage.startsWith('penilaian')) navigate(activePage); 
-            }
-        }
-
-        function renderNavMenu() {
-            const menu = document.getElementById('nav-menu');
-            let items = [];
-
-            if (currentUser.role === 'siswa') {
-                items = [
-                    { id: 'dashboard-siswa', icon: 'fa-home', label: 'Dashboard' },
-                    { id: 'penilaian-diri', icon: 'fa-user', label: 'Penilaian Diri' },
-                    { id: 'penilaian-teman', icon: 'fa-users', label: 'Penilaian Teman' }
-                ];
-            } else if (currentUser.role === 'wali') {
-                items = [
-                    { id: 'dashboard-wali', icon: 'fa-home', label: 'Dashboard Kelas' },
-                    { id: 'penilaian-wali', icon: 'fa-clipboard-check', label: 'Observasi' }
-                ];
-            } else if (currentUser.role === 'admin') {
-                items = [
-                    { id: 'dashboard-admin', icon: 'fa-cogs', label: 'Pengaturan' },
-                    { id: 'rekap-rapor', icon: 'fa-file-pdf', label: 'Cetak Rapor' }
-                ];
-            }
-
-            menu.innerHTML = items.map(item => `
-                <button onclick="navigate('${item.id}')" id="nav-${item.id}" class="touch-target w-full flex items-center gap-3 px-4 py-3 rounded-md text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors text-left font-medium">
-                    <i class="fas ${item.icon} w-5 text-center"></i>
-                    <span>${item.label}</span>
+              <div class="flex items-center gap-2">
+                <button onclick="copyNamaSiswaRekap()" class="px-3 py-2 bg-slate-800 text-white text-xs font-semibold rounded-lg hover:bg-slate-900 transition flex items-center gap-1.5 min-h-[38px]" title="Copy daftar nama siswa satu per baris">
+                  <i class="fa-solid fa-copy"></i> Copy Nama
                 </button>
-            `).join('');
-        }
+                <button onclick="copyNilaiMatrixRekap()" class="px-3 py-2 bg-emerald-700 text-white text-xs font-semibold rounded-lg hover:bg-emerald-800 transition flex items-center gap-1.5 min-h-[38px]" title="Copy hanya angka nilai untuk leger Excel">
+                  <i class="fa-solid fa-file-excel"></i> Copy Nilai (Leger)
+                </button>
+              </div>
+            </div>
+          </div>
 
-        let activePage = '';
-        function navigate(pageId) {
-            document.querySelectorAll('#nav-menu button').forEach(btn => btn.classList.remove('bg-blue-100', 'text-blue-700'));
-            const activeBtn = document.getElementById(`nav-${pageId}`);
-            if (activeBtn) activeBtn.classList.add('bg-blue-100', 'text-blue-700');
+          <!-- TABEL REKAP NILAI -->
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div class="px-4 py-2.5 bg-slate-50 border-b flex items-center justify-between text-xs text-slate-600">
+              <span>Menampilkan: <strong>Semester ${currentSemester}</strong> | Fokus: <strong>${currentFokus}</strong></span>
+              <span>Total: <strong>${state.rekapData.length} Siswa</strong></span>
+            </div>
+            <div class="overflow-x-auto">
+              <table id="rekap-table" class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                    <th class="p-3 text-center">NO</th>
+                    <th class="p-3">NAMA SISWA</th>
+                    <th class="p-3">NISN</th>
+                    <th class="p-3">KELAS</th>
+                    <th class="p-3 text-center">TANGGUH</th>
+                    <th class="p-3 text-center">IKHLAS</th>
+                    <th class="p-3 text-center">JUJUR</th>
+                    <th class="p-3 text-center">TAWADHU</th>
+                    <th class="p-3 text-center">BERANI</th>
+                    <th class="p-3 text-center">DISIPLIN</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  ${state.rekapData.length === 0 ? `<tr><td colspan="10" class="p-6 text-center text-slate-400">Belum ada data nilai untuk semester dan fokus ini</td></tr>` : state.rekapData.map((row, idx) => `
+                    <tr class="hover:bg-slate-50 transition">
+                      <td class="p-3 text-center font-bold text-slate-500">${idx + 1}</td>
+                      <td class="p-3 font-bold text-slate-800 uppercase">${row.nama}</td>
+                      <td class="p-3 font-mono text-slate-500">${row.nisn}</td>
+                      <td class="p-3 font-medium text-slate-600">${row.kelas}</td>
+                      <td class="p-3 text-center font-bold">${formatScore(row.tangguh)}</td>
+                      <td class="p-3 text-center font-bold">${formatScore(row.ikhlas)}</td>
+                      <td class="p-3 text-center font-bold">${formatScore(row.jujur)}</td>
+                      <td class="p-3 text-center font-bold">${formatScore(row.tawadhu)}</td>
+                      <td class="p-3 text-center font-bold">${formatScore(row.berani)}</td>
+                      <td class="p-3 text-center font-bold">${formatScore(row.disiplin)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
 
-            activePage = pageId;
-            const content = document.getElementById('content-area');
-            
-            const sidebar = document.getElementById('sidebar');
-            if (!sidebar.classList.contains('-translate-x-full') && window.innerWidth < 768) toggleMobileMenu();
+    function changeRekapFilter(type, value) {
+      state.rekapFilter[type] = value;
+      loadWaliRekap();
+    }
 
-            if (!masterDataCache.loaded && pageId.startsWith('penilaian')) {
-                content.innerHTML = `<div class="flex flex-col items-center justify-center h-64 text-gray-500"><div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500 mb-4"></div><p>Mengambil indikator penilaian...</p></div>`;
-                return;
-            }
+    function copyNamaSiswaRekap() {
+      if(!state.rekapData || state.rekapData.length === 0) {
+        showToast("Tidak ada data siswa untuk disalin.", "warning");
+        return;
+      }
+      const text = state.rekapData.map(s => s.nama).join('\n');
+      navigator.clipboard.writeText(text);
+      showToast("Daftar nama siswa berhasil disalin ke clipboard!", "success");
+    }
 
-            let html = '';
-            switch (pageId) {
-                case 'dashboard-siswa': html = renderDashboardSiswa(); break;
-                case 'penilaian-diri': html = renderFormPenilaian('Self'); break;
-                case 'penilaian-teman': html = renderFormPenilaian('Peer'); break;
-                case 'dashboard-wali': html = renderDashboardWali(); break;
-                case 'penilaian-wali': html = renderFormPenilaianWali(); break;
-                case 'dashboard-admin': 
-                    html = renderDashboardAdmin(); 
-                    // Trigger load settings for admin after DOM is ready
-                    setTimeout(() => loadAdminSettings(), 100);
-                    break;
-                case 'rekap-rapor': html = renderRekapRapor(); break;
-                default: html = `<div class="p-8 text-center text-gray-500">Halaman tidak ditemukan</div>`;
-            }
-            content.innerHTML = html;
-        }
+    function copyNilaiMatrixRekap() {
+      if(!state.rekapData || state.rekapData.length === 0) {
+        showToast("Tidak ada data nilai untuk disalin.", "warning");
+        return;
+      }
+      let tsv = "";
+      state.rekapData.forEach((row) => {
+        tsv += `${formatScore(row.tangguh)}\t${formatScore(row.ikhlas)}\t${formatScore(row.jujur)}\t${formatScore(row.tawadhu)}\t${formatScore(row.berani)}\t${formatScore(row.disiplin)}\n`;
+      });
+      navigator.clipboard.writeText(tsv);
+      showToast("Nilai leger (angka saja) berhasil disalin! Siap langsung dipaste ke sheet leger Excel.", "success");
+    }
 
-        // --- PAGE RENDERERS ---
-        function renderDashboardSiswa() {
-            return `
-                <div class="mb-6">
-                    <h2 class="text-2xl font-bold text-gray-800">Halo, ${currentUser.nama}!</h2>
-                    <p class="text-gray-600">Kelas ${currentUser.nama_kelas}</p>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:shadow-md" onclick="navigate('penilaian-diri')">
-                        <div class="bg-blue-100 p-4 rounded-full text-blue-600 text-2xl"><i class="fas fa-user-edit"></i></div>
-                        <div>
-                            <h3 class="font-bold text-lg text-gray-800">Penilaian Diri</h3>
-                            <p class="text-sm text-gray-500">Isi kuesioner bulan ini</p>
-                        </div>
-                    </div>
-                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:shadow-md" onclick="navigate('penilaian-teman')">
-                        <div class="bg-green-100 p-4 rounded-full text-green-600 text-2xl"><i class="fas fa-users"></i></div>
-                        <div>
-                            <h3 class="font-bold text-lg text-gray-800">Penilaian Teman</h3>
-                            <p class="text-sm text-gray-500">Nilai teman sekelasmu</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
+    // Siswa Views
+    async function loadSiswaDashboard() {
+      showLoading("Memuat data siswa...");
+      const res = await apiRequest('getSiswaStatus');
+      hideLoading();
 
-        // FUNGSI INJEKSI NAMA TEMAN
-        function updatePeerName(selectElement) {
-            const selectedOption = selectElement.options[selectElement.selectedIndex];
-            const name = selectedOption.value ? selectedOption.getAttribute('data-nama') : '';
-            
-            const rows = document.querySelectorAll('.peer-question-row');
-            rows.forEach(row => {
-                const nameSpan = row.querySelector('.dynamic-peer-name');
-                const qSpan = row.querySelector('.question-text');
-                const originalText = qSpan.getAttribute('data-original');
-                
-                if (name) {
-                    nameSpan.textContent = name + ' ';
-                    // Mengubah huruf pertama teks asli jadi huruf kecil agar nyambung
-                    qSpan.textContent = originalText.charAt(0).toLowerCase() + originalText.slice(1);
-                } else {
-                    nameSpan.textContent = '';
-                    qSpan.textContent = originalText;
-                }
-            });
-        }
+      const content = document.getElementById('view-content');
+      if (!res.success) {
+        content.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">Gagal memuat status: ${res.message}</div>`;
+        return;
+      }
 
-        function renderFormPenilaian(type) {
-            const title = type === 'Self' ? 'FORMAT PENILAIAN DIRI SENDIRI' : 'FORMAT PENILAIAN ANTAR TEMAN';
-            
-            if (masterDataCache.indikator.length === 0) {
-                 return `<div class="p-4 bg-yellow-50 text-yellow-700 rounded-md border border-yellow-200">Data indikator penilaian kosong. Admin belum mengatur indikator di Sheet Master atau Pilar sedang dimatikan.</div>`;
-            }
+      const d = res.data;
+      const scores = d.scores || {};
 
-            const indicators = masterDataCache.indikator.filter(i => i.Tipe === type || i.Tipe === 'All');
+      content.innerHTML = `
+        <div class="space-y-6">
+          <div class="bg-gradient-to-r from-brand-800 to-emerald-700 text-white p-6 rounded-2xl shadow-md">
+            <h2 class="text-2xl font-bold">Assalamu'alaikum, ${state.currentUser.nama}</h2>
+            <p class="text-emerald-200 text-sm mt-1">NISN: ${state.currentUser.nisn} | Kelas: ${state.currentUser.kelas}</p>
+          </div>
 
-            let targetSelect = '';
-            if (type === 'Peer') {
-                const teman = masterDataCache.temanSekelas || [];
-                if(teman.length === 0) return `<div class="p-4 bg-yellow-50 text-yellow-700 rounded-md">Belum ada data teman di kelas Anda.</div>`;
-                
-                targetSelect = `
-                    <div class="mb-4">
-                        <label class="block text-sm font-bold text-gray-700 mb-1">Pilih Teman yang Dinilai</label>
-                        <select id="target-siswa" class="touch-target w-full md:w-1/2 p-2 border border-gray-300 rounded-md outline-none focus:border-blue-500" required onchange="updatePeerName(this)">
-                            <option value="">-- Pilih Teman --</option>
-                            ${teman.map(s => `<option value="${s.ID_Siswa}" data-nama="${s.Nama_Siswa}">${s.Nama_Siswa}</option>`).join('')}
-                        </select>
-                    </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500 font-semibold uppercase">Penilaian Mandiri</p>
+                <h3 class="text-lg font-bold mt-1 ${d.hasFilledDiri ? 'text-emerald-600' : 'text-amber-600'}">
+                  ${d.hasFilledDiri ? '<i class="fa-solid fa-circle-check"></i> Sudah Mengisi (Terkunci)' : '<i class="fa-solid fa-clock"></i> Belum Mengisi'}
+                </h3>
+              </div>
+              <button onclick="navigateTo('siswa-diri')" class="px-3 py-2 ${d.hasFilledDiri ? 'bg-slate-700' : 'bg-brand-600 hover:bg-brand-700'} text-white text-xs font-semibold rounded-xl min-h-[44px]">
+                ${d.hasFilledDiri ? 'Lihat Jawaban' : 'Isi Sekarang'}
+              </button>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-500 font-semibold uppercase">Penilaian Antar Teman</p>
+                <h3 class="text-lg font-bold text-slate-800 mt-1">${d.friendsEvaluatedCount || 0} dari 4 Teman</h3>
+              </div>
+              <button onclick="navigateTo('siswa-teman')" class="px-3 py-2 bg-teal-600 text-white text-xs font-semibold rounded-xl hover:bg-teal-700 min-h-[44px]">
+                Nilai Teman
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <h3 class="font-bold text-slate-800 border-b pb-2">Ringkasan Nilai Karakter Saya</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              ${['IKHLAS', 'JUJUR', 'TAWADHU', 'BERANI', 'DISIPLIN', 'TANGGUH'].map(char => {
+                const val = scores[char] || 0;
+                const pred = getPredicate(val);
+                return `
+                  <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                    <p class="text-xs font-bold text-slate-500 uppercase">${char}</p>
+                    <p class="text-2xl font-black text-slate-800 my-1">${formatScore(val)}</p>
+                    ${val > 0 ? `<span class="px-2 py-0.5 text-[10px] font-bold rounded border ${pred.color}">${pred.text}</span>` : `<span class="text-xs text-slate-400">Belum Ada Data</span>`}
+                  </div>
                 `;
-            }
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
 
-            let groupedIndicators = {};
-            indicators.forEach(ind => {
-                if(!groupedIndicators[ind.Karakter]) groupedIndicators[ind.Karakter] = [];
-                groupedIndicators[ind.Karakter].push(ind);
-            });
+    async function loadSiswaDiri() {
+      showLoading("Memuat form penilaian diri...");
+      const res = await apiRequest('getPenilaianDiriData');
+      hideLoading();
 
-            let tableRows = '';
-            for(let k in groupedIndicators) {
-                let items = groupedIndicators[k];
-                items.forEach((item, idx) => {
-                    tableRows += `
-                        <tr class="border-b hover:bg-gray-50 ${type === 'Peer' ? 'peer-question-row' : ''}">
-                            ${idx === 0 ? `<td rowspan="${items.length}" class="p-3 border-r font-bold text-center align-middle">${k}</td>` : ''}
-                            <td class="p-3 text-sm border-r leading-relaxed">
-                                ${type === 'Peer' ? `<span class="dynamic-peer-name text-blue-700 font-bold"></span>` : ''}
-                                <span class="question-text" ${type === 'Peer' ? `data-original="${item.Pertanyaan}"` : ''}>${item.Pertanyaan}</span>
-                            </td>
-                            <td class="p-2 text-center border-r"><input type="radio" name="ind_${item.ID_Indikator}" value="1" class="w-4 h-4 text-blue-600" required></td>
-                            <td class="p-2 text-center border-r"><input type="radio" name="ind_${item.ID_Indikator}" value="2" class="w-4 h-4 text-blue-600"></td>
-                            <td class="p-2 text-center border-r"><input type="radio" name="ind_${item.ID_Indikator}" value="3" class="w-4 h-4 text-blue-600"></td>
-                            <td class="p-2 text-center"><input type="radio" name="ind_${item.ID_Indikator}" value="4" class="w-4 h-4 text-blue-600"></td>
-                        </tr>
-                    `;
-                });
-            }
+      const existing = (res.success && res.data) ? res.data : {};
+      const isAlreadyFilled = Object.keys(existing).length > 0;
+      const content = document.getElementById('view-content');
+      const currentQuestions = (state.activePertanyaan && state.activePertanyaan.length > 0) ? state.activePertanyaan : state.pertanyaan;
 
-            return `
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                    <div class="p-6 border-b bg-gray-50">
-                        <h2 class="text-xl font-bold text-center text-gray-800 mb-4">${title}</h2>
-                        ${targetSelect}
-                    </div>
-                    <form id="form-penilaian" onsubmit="submitPenilaian(event, '${type}')" class="p-0">
-                        <div class="overflow-x-auto">
-                            <table class="w-full min-w-[800px] border-collapse">
-                                <thead>
-                                    <tr class="bg-yellow-100 border-b border-t">
-                                        <th rowspan="2" class="p-3 border-r text-gray-800 font-bold w-40">Karakter</th>
-                                        <th rowspan="2" class="p-3 border-r text-gray-800 font-bold">Aspek Penilaian</th>
-                                        <th colspan="4" class="p-2 text-center border-b text-gray-800 font-bold">Skor</th>
-                                    </tr>
-                                    <tr class="bg-yellow-100 border-b">
-                                        <th class="p-2 border-r text-xs font-semibold w-16">Tdk Pernah (1)</th>
-                                        <th class="p-2 border-r text-xs font-semibold w-16">Kadang (2)</th>
-                                        <th class="p-2 border-r text-xs font-semibold w-16">Sering (3)</th>
-                                        <th class="p-2 text-xs font-semibold w-16">Selalu (4)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${tableRows}</tbody>
-                            </table>
-                        </div>
-                        <div class="p-4 border-t bg-gray-50 flex justify-end">
-                            <button type="submit" class="touch-target bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-bold transition-colors">
-                                Simpan Penilaian
-                            </button>
-                        </div>
-                    </form>
+      content.innerHTML = `
+        <div class="space-y-6 max-w-3xl mx-auto">
+          <div class="border-b pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <div>
+              <h2 class="text-xl font-bold text-slate-800">Form Penilaian Diri (Muthala'ah An-Nafs)</h2>
+              <p class="text-xs text-slate-500 mt-1">Jawablah pertanyaan sesuai kondisi diri Anda yang sebenarnya.</p>
+            </div>
+            ${isAlreadyFilled ? `
+              <span class="px-3 py-1.5 bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold rounded-lg text-xs flex items-center gap-1.5">
+                <i class="fa-solid fa-lock"></i> Sudah Terisi & Terkunci
+              </span>
+            ` : ''}
+          </div>
+
+          ${isAlreadyFilled ? `
+            <div class="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex items-center gap-2">
+              <i class="fa-solid fa-circle-info text-base"></i>
+              <span>Anda telah menyelesaikan pengisian penilaian diri pada periode ini. Jawaban Anda bersifat final dan telah tersimpan di sistem.</span>
+            </div>
+          ` : ''}
+
+          <form onsubmit="submitPenilaianDiri(event)" class="space-y-4">
+            ${currentQuestions.map((q, idx) => {
+              const selectedVal = existing[q.id_q] || 0;
+              return `
+                <div class="p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
+                  <p class="font-medium text-slate-800 text-sm mb-3"><span class="font-bold text-slate-900 mr-1">${idx + 1}.</span> ${q.teks}</p>
+                  
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    ${[
+                      { val: 1, label: 'Tidak Pernah' },
+                      { val: 2, label: 'Kadang-kadang' },
+                      { val: 3, label: 'Sering' },
+                      { val: 4, label: 'Selalu' }
+                    ].map(opt => `
+                      <label class="cursor-pointer border rounded-lg p-2.5 text-center text-xs font-semibold transition ${isAlreadyFilled ? 'cursor-not-allowed opacity-90' : 'hover:bg-emerald-50'} has-[:checked]:bg-brand-600 has-[:checked]:text-white has-[:checked]:border-brand-600">
+                        <input type="radio" name="ans_${q.id_q}" value="${opt.val}" ${selectedVal == opt.val ? 'checked' : ''} ${isAlreadyFilled ? 'disabled' : 'required'} class="sr-only" />
+                        ${opt.label}
+                      </label>
+                    `).join('')}
+                  </div>
                 </div>
-            `;
-        }
+              `;
+            }).join('')}
 
-        function renderDashboardWali() {
-            return `
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col items-center justify-center min-h-[200px] text-gray-500">
-                    <i class="fas fa-chart-bar text-4xl mb-3"></i>
-                    <p>Statistik progress pengisian siswa akan dirender dari data real di sheet.</p>
+            ${!isAlreadyFilled ? `
+              <div class="pt-4 flex justify-end">
+                <button type="submit" class="px-6 py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 shadow-md transition min-h-[44px]">
+                  Kirim Penilaian Diri (Final)
+                </button>
+              </div>
+            ` : ''}
+          </form>
+        </div>
+      `;
+    }
+
+    async function submitPenilaianDiri(e) {
+      e.preventDefault();
+      
+      showModal("Konfirmasi Pengiriman", "<p>Penilaian diri hanya dapat dikirim <strong>satu kali</strong> per periode dan tidak dapat diedit kembali. Apakah Anda sudah yakin dengan seluruh jawaban Anda?</p>", async () => {
+        showLoading("Menyimpan Penilaian Diri...");
+
+        const formData = new FormData(e.target);
+        const answers = {};
+        const currentQuestions = (state.activePertanyaan && state.activePertanyaan.length > 0) ? state.activePertanyaan : state.pertanyaan;
+
+        currentQuestions.forEach(q => {
+          answers[q.id_q] = formData.get(`ans_${q.id_q}`);
+        });
+
+        const res = await apiRequest('submitPenilaianDiri', { answers });
+        hideLoading();
+
+        if (res.success) {
+          showToast("Penilaian Diri Anda berhasil disimpan dan dikunci!", "success");
+          navigateTo('siswa-dashboard');
+        } else {
+          showToast(res.message || "Gagal menyimpan penilaian diri.", "error");
+        }
+      }, "Ya, Kirim Sekarang");
+    }
+
+    async function loadSiswaTeman() {
+      showLoading("Memuat 4 teman yang harus dinilai...");
+      const res = await apiRequest('getTemanList');
+      hideLoading();
+
+      const content = document.getElementById('view-content');
+      if (!res.success) {
+        content.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm">Gagal memuat daftar teman: ${res.message}</div>`;
+        return;
+      }
+
+      const temanList = res.data || [];
+      content.innerHTML = `
+        <div class="space-y-6 max-w-3xl mx-auto">
+          <div class="border-b pb-4">
+            <h2 class="text-xl font-bold text-slate-800">Penilaian Antar Teman (4 Rekan Terpilih)</h2>
+            <p class="text-xs text-slate-500 mt-1">Sistem secara otomatis menentukan 4 teman dari urutan absen Anda untuk dinilai secara objektif.</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ${temanList.length === 0 ? `
+              <div class="col-span-2 p-6 bg-slate-100 rounded-xl text-center text-xs text-slate-500">
+                Tidak ada rekan sekelas yang ditemukan untuk dinilai.
+              </div>
+            ` : temanList.map((f, idx) => `
+              <div class="p-4 rounded-xl bg-white border border-slate-200 flex justify-between items-center shadow-sm">
+                <div>
+                  <span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase">Teman #${idx+1}</span>
+                  <h4 class="font-bold text-slate-800 text-sm mt-1">${f.nama}</h4>
+                  <p class="text-xs text-slate-500">NISN: ${f.nisn}</p>
                 </div>
-            `;
-        }
+                <button onclick="openFormNilaiTeman('${f.nisn}', '${f.nama}')" class="px-3 py-1.5 ${f.isEvaluated ? 'bg-slate-100 text-slate-600 border border-slate-300' : 'bg-teal-600 text-white hover:bg-teal-700'} text-xs font-semibold rounded-lg min-h-[44px]">
+                  ${f.isEvaluated ? '<i class="fa-solid fa-check text-emerald-600"></i> Sudah Dinilai' : 'Nilai Teman'}
+                </button>
+              </div>
+            `).join('')}
+          </div>
 
-        function renderFormPenilaianWali() {
-            const siswa = masterDataCache.semuaSiswa || [];
-            if(siswa.length === 0) return `<div class="p-4 bg-yellow-50 text-yellow-700 rounded-md">Belum ada data siswa di kelas ini.</div>`;
+          <div id="form-teman-container"></div>
+        </div>
+      `;
+    }
 
-            return `
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h2 class="text-xl font-bold text-gray-800 mb-4">Penilaian Observasi Wali Kelas</h2>
-                    <form onsubmit="submitPenilaianWali(event)">
-                        <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">Pilih Siswa</label>
-                            <select id="target-siswa-wali" class="touch-target w-full p-2 border border-gray-300 rounded-md outline-none focus:border-blue-500" required>
-                                <option value="">-- Pilih Siswa --</option>
-                                ${siswa.map(s => `<option value="${s.ID_Siswa}">${s.Nama_Siswa}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">Deskripsi Karakter Umum</label>
-                            <textarea id="catatan-wali" class="w-full p-3 border border-gray-300 rounded-md outline-none focus:border-blue-500 min-h-[100px]" required placeholder="Masukkan catatan observasi karakter..."></textarea>
-                        </div>
-                        <div class="flex justify-end">
-                            <button type="submit" class="touch-target bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-bold">Simpan Catatan</button>
-                        </div>
-                    </form>
+    async function openFormNilaiTeman(targetNisn, targetNama) {
+      showLoading("Memuat instrumen...");
+      const res = await apiRequest('getPenilaianTemanData', { targetNisn });
+      hideLoading();
+
+      const existing = (res.success && res.data) ? res.data : {};
+      const container = document.getElementById('form-teman-container');
+      const currentQuestions = (state.activePertanyaan && state.activePertanyaan.length > 0) ? state.activePertanyaan : state.pertanyaan;
+
+      container.innerHTML = `
+        <div class="mt-6 bg-white p-6 rounded-2xl border-2 border-teal-500 shadow-xl space-y-6">
+          <div class="border-b pb-3 flex justify-between items-center">
+            <div>
+              <h3 class="font-bold text-lg text-slate-800">Form Menilai: ${targetNama}</h3>
+              <p class="text-xs text-slate-500">Beri penilaian yang objektif untuk teman Anda.</p>
+            </div>
+            <button onclick="document.getElementById('form-teman-container').innerHTML=''" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+
+          <form onsubmit="submitPenilaianTeman(event, '${targetNisn}')" class="space-y-4">
+            ${currentQuestions.map((q, idx) => {
+              const selectedVal = existing[q.id_q] || 0;
+              const peerText = getPersonQuestionText(q.teks, targetNama);
+              return `
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <p class="font-medium text-slate-800 text-xs mb-2.5"><span class="font-bold text-slate-900 mr-1">${idx + 1}.</span> "${peerText}"</p>
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    ${[
+                      { val: 1, label: 'Tidak Pernah' },
+                      { val: 2, label: 'Kadang-kadang' },
+                      { val: 3, label: 'Sering' },
+                      { val: 4, label: 'Selalu' }
+                    ].map(opt => `
+                      <label class="cursor-pointer border rounded-lg p-2 text-center text-xs font-semibold transition hover:bg-teal-50 has-[:checked]:bg-teal-600 has-[:checked]:text-white">
+                        <input type="radio" name="ans_${q.id_q}" value="${opt.val}" ${selectedVal == opt.val ? 'checked' : ''} required class="sr-only" />
+                        ${opt.label}
+                      </label>
+                    `).join('')}
+                  </div>
                 </div>
-            `;
-        }
+              `;
+            }).join('')}
 
-        function renderDashboardAdmin() {
-            return `
-                <div class="mb-6">
-                    <h2 class="text-2xl font-bold text-gray-800">Pengaturan Sistem</h2>
-                    <p class="text-gray-600">Manajemen fitur dan kuesioner aplikasi.</p>
-                </div>
-                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-                    <h3 class="font-bold text-lg text-gray-800 mb-2 border-b pb-2">Kontrol Pilar Penilaian</h3>
-                    <p class="text-sm text-gray-500 mb-4">Centang pilar mana saja yang akan ditampilkan kepada siswa di bulan ini.</p>
-                    
-                    <div id="admin-settings-container">
-                        <div class="flex items-center gap-2 text-gray-500 text-sm">
-                            <i class="fas fa-spinner fa-spin"></i> Mengambil data dari server...
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
+            <div class="flex justify-end gap-2 pt-2">
+              <button type="button" onclick="document.getElementById('form-teman-container').innerHTML=''" class="px-4 py-2 text-slate-600 text-sm font-medium min-h-[44px]">Batal</button>
+              <button type="submit" class="px-6 py-2.5 bg-teal-600 text-white font-bold text-sm rounded-xl hover:bg-teal-700 shadow-md transition min-h-[44px]">Simpan Penilaian Teman</button>
+            </div>
+          </form>
+        </div>
+      `;
 
-        async function loadAdminSettings() {
-            const container = document.getElementById('admin-settings-container');
-            if(!container) return;
+      container.scrollIntoView({ behavior: 'smooth' });
+    }
 
-            const res = await fetchAPI('getSettings');
-            if(res.success) {
-                const baikChecked = res.data.pilar_baik === '1' ? 'checked' : '';
-                const kuatChecked = res.data.pilar_kuat === '1' ? 'checked' : '';
-                
-                container.innerHTML = `
-                    <div class="space-y-4 max-w-md">
-                        <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                            <input type="checkbox" id="toggle-baik" class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500" ${baikChecked}>
-                            <span class="font-medium text-gray-700">Aktifkan Kuesioner Pilar "BAIK"</span>
-                        </label>
-                        <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                            <input type="checkbox" id="toggle-kuat" class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500" ${kuatChecked}>
-                            <span class="font-medium text-gray-700">Aktifkan Kuesioner Pilar "KUAT"</span>
-                        </label>
-                        <button onclick="updatePilarSetting()" class="touch-target mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors w-full">
-                            <i class="fas fa-save mr-2"></i> Simpan Pengaturan
-                        </button>
-                    </div>
-                `;
-            } else {
-                container.innerHTML = `<p class="text-red-500 text-sm">Gagal memuat pengaturan. Cek koneksi API.</p>`;
-            }
-        }
+    async function submitPenilaianTeman(e, targetNisn) {
+      e.preventDefault();
+      showLoading("Menyimpan Penilaian Teman...");
 
-        async function updatePilarSetting() {
-            const baik = document.getElementById('toggle-baik').checked ? '1' : '0';
-            const kuat = document.getElementById('toggle-kuat').checked ? '1' : '0';
-            
-            showLoading('Menyimpan pengaturan pilar...');
-            const res = await fetchAPI('saveSettings', { pilar_baik: baik, pilar_kuat: kuat, id_user: currentUser.id_user });
-            hideLoading();
-            
-            if(res.success) {
-                showToast('Pengaturan pilar berhasil diperbarui!');
-                masterDataCache.loaded = false; // Reset cache agar tarikan data berikutnya sesuai pengaturan baru
-            } else {
-                showToast('Gagal: ' + res.message, 'error');
-            }
-        }
+      const formData = new FormData(e.target);
+      const answers = {};
+      const currentQuestions = (state.activePertanyaan && state.activePertanyaan.length > 0) ? state.activePertanyaan : state.pertanyaan;
 
-        function renderRekapRapor() {
-            const siswa = masterDataCache.semuaSiswa || [];
-            return `
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h2 class="text-xl font-bold text-gray-800 mb-4">Cetak Rapor Karakter</h2>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-gray-100 border-b">
-                                    <th class="p-3 font-semibold text-sm">Nama Siswa</th>
-                                    <th class="p-3 font-semibold text-sm">Kelas</th>
-                                    <th class="p-3 font-semibold text-sm">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${siswa.length === 0 ? `<tr><td colspan="3" class="p-4 text-center">Data kosong</td></tr>` : 
-                                  siswa.map(s => `
-                                    <tr class="border-b hover:bg-gray-50">
-                                        <td class="p-3 font-medium text-gray-800">${s.Nama_Siswa}</td>
-                                        <td class="p-3 text-sm">${s.ID_Kelas}</td>
-                                        <td class="p-3">
-                                            <button onclick="downloadPDFRapor('${s.ID_Siswa}', '${s.Nama_Siswa}')" class="touch-target bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2">
-                                                <i class="fas fa-file-pdf"></i> Unduh PDF
-                                            </button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            `;
-        }
+      currentQuestions.forEach(q => {
+        answers[q.id_q] = formData.get(`ans_${q.id_q}`);
+      });
 
-        // --- SUBMIT ACTIONS ---
-        async function submitPenilaian(e, type) {
-            e.preventDefault();
-            const form = e.target;
-            const targetId = type === 'Self' ? currentUser.id_relasi : form.querySelector('#target-siswa').value;
-            
-            const formData = new FormData(form);
-            const answers = {};
-            for (let [key, value] of formData.entries()) {
-                if (key.startsWith('ind_')) answers[key.replace('ind_', '')] = parseInt(value);
-            }
+      const res = await apiRequest('submitPenilaianTeman', { targetNisn, answers });
+      hideLoading();
 
-            showModal('Konfirmasi', 'Kirim penilaian ini?', 'Kirim', async () => {
-                showLoading('Menyimpan ke database...');
-                const payload = {
-                    id_penilai: currentUser.id_relasi,
-                    id_dinilai: targetId,
-                    tipe: type,
-                    jawaban: JSON.stringify(answers)
-                };
+      if (res.success) {
+        showToast("Penilaian teman berhasil disimpan!", "success");
+        loadSiswaTeman();
+      } else {
+        showToast(res.message || "Gagal menyimpan penilaian teman.", "error");
+      }
+    }
 
-                const res = await fetchAPI('simpanNilai', payload);
-                hideLoading();
-
-                if(res.success) {
-                    showToast('Berhasil disimpan!');
-                    form.reset();
-                    if(type === 'Peer') updatePeerName(form.querySelector('#target-siswa')); // Reset text
-                } else {
-                    showToast('Gagal: ' + res.message, 'error');
-                }
-            });
-        }
-
-        async function submitPenilaianWali(e) {
-            e.preventDefault();
-            const targetId = document.getElementById('target-siswa-wali').value;
-            const catatan = document.getElementById('catatan-wali').value;
-
-            showLoading('Menyimpan catatan...');
-            const res = await fetchAPI('simpanNilaiWali', { id_penilai: currentUser.id_relasi, id_dinilai: targetId, tipe: 'Wali', catatan: catatan });
-            hideLoading();
-
-            if(res.success) {
-                showToast('Catatan tersimpan!');
-                e.target.reset();
-            } else {
-                showToast('Gagal: ' + res.message, 'error');
-            }
-        }
-
-        async function downloadPDFRapor(idSiswa, namaSiswa) {
-            showLoading('Mengambil rekap nilai dari server...');
-            const res = await fetchAPI('getRekapNilaiSiswa', { id_siswa: idSiswa });
-            
-            if(!res.success) {
-                hideLoading();
-                showToast('Gagal mengambil data: ' + res.message, 'error');
-                return;
-            }
-
-            try {
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
-                
-                doc.setFontSize(16);
-                doc.setFont("helvetica", "bold");
-                doc.text("RAPOR KARAKTER SISWA", 105, 20, { align: "center" });
-                
-                doc.setFontSize(11);
-                doc.setFont("helvetica", "normal");
-                doc.text(`Nama Santri: ${namaSiswa}`, 14, 40);
-                doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, 48);
-
-                const tableData = [];
-                const rekap = res.data.rekapKarakter || {};
-                for(let k in rekap) {
-                    let skor = parseFloat(rekap[k]);
-                    let kategori = skor > 3.5 ? 'Sangat Baik' : (skor > 2.5 ? 'Baik' : 'Cukup');
-                    tableData.push([k, skor.toFixed(1), kategori]);
-                }
-
-                if(tableData.length === 0) tableData.push(['Belum ada data', '-', '-']);
-
-                doc.autoTable({
-                    startY: 60,
-                    head: [['Karakter / Pilar', 'Skor Rata-rata', 'Kategori']],
-                    body: tableData,
-                    theme: 'grid',
-                    headStyles: { fillColor: [41, 128, 185] }
-                });
-
-                const finalY = doc.lastAutoTable.finalY || 60;
-                doc.setFont("helvetica", "bold");
-                doc.text("Catatan Wali Kelas:", 14, finalY + 15);
-                doc.setFont("helvetica", "normal");
-                
-                const catatanStr = res.data.catatanWali || "Belum ada catatan dari Wali Kelas.";
-                const splitCatatan = doc.splitTextToSize(catatanStr, 180);
-                doc.text(splitCatatan, 14, finalY + 25);
-                
-                doc.save(`Rapor_${namaSiswa.replace(/\s+/g, '_')}.pdf`);
-                hideLoading();
-                showToast('PDF berhasil diunduh!');
-
-            } catch (error) {
-                console.error(error);
-                hideLoading();
-                showToast('Gagal memproses PDF', 'error');
-            }
-        }
-
-        window.onload = () => {
-            const savedUser = sessionStorage.getItem('user');
-            if (savedUser) {
-                currentUser = JSON.parse(savedUser);
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('main-layout').classList.remove('hidden');
-                initApp();
-            }
-        };
-    </script>
+    window.addEventListener('DOMContentLoaded', () => {
+      checkExistingSession();
+    });
+  </script>
 </body>
 </html>
