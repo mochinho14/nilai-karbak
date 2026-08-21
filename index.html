@@ -110,7 +110,7 @@
             <h4 id="active-periode-text" class="font-bold text-slate-800 text-sm sm:text-base">Memuat informasi periode...</h4>
           </div>
         </div>
-        <div id="active-fokus-badge" class="flex flex-wrap gap-1"></div>
+        <div id="active-fokus-badge" class="flex flex-wrap gap-1 items-center"></div>
       </div>
 
       <!-- VIEW MODULE CONTAINER -->
@@ -161,7 +161,7 @@
 
   <script>
     // CONFIGURATION: Tempel Web App URL Google Apps Script Anda di sini
-    const API_URL = "https://script.google.com/macros/s/AKfycbyhfU5WB_IClXAzrNu1e-YNm1zsKTPw_Kl5699Zx1WGHate0sZP3PstsL9flAmSitYy/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbyhfU5WB_IClXAzrNu1e-YNm1zsKTPw_K15699Zx1WGHate0sZP3PstsL9f1AmSitYy/exec";
 
     // Application State Cache
     const state = {
@@ -175,7 +175,7 @@
       periodeList: [],
       rekapFilter: {
         semester: 'Ganjil',
-        fokus: 'Semua'
+        fokus: 'Jaga Lisan'
       },
       rekapData: null
     };
@@ -269,7 +269,7 @@
     }
 
     async function apiRequest(action, data = {}) {
-      if (API_URL === "URL_WEB_APP_GAS_ANDA_DISINI") {
+      if (!API_URL || API_URL === "URL_WEB_APP_GAS_ANDA_DISINI") {
         showToast("Konfigurasi API_URL belum diatur dengan Web App GAS Anda!", "error");
         return { success: false, message: "URL API belum diset." };
       }
@@ -378,18 +378,14 @@
       const badgeCont = document.getElementById('active-fokus-badge');
       badgeCont.innerHTML = '';
       
+      // Update label pilar menjadi Karakter: Baik / Karakter: Kuat
       if (p.pilarBaik) {
-        badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-semibold bg-emerald-700 text-white rounded-full">Pilar: Baik</span>`;
+        badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-semibold bg-emerald-700 text-white rounded-full">Karakter: Baik</span>`;
       }
       if (p.pilarKuat) {
-        badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-semibold bg-blue-700 text-white rounded-full">Pilar: Kuat</span>`;
+        badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-semibold bg-blue-700 text-white rounded-full">Karakter: Kuat</span>`;
       }
-      if (p.fokusJagaLisan) {
-        badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-medium bg-emerald-600 text-white rounded-full">Jaga Lisan</span>`;
-      }
-      if (p.fokusBR3T) {
-        badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-medium bg-teal-600 text-white rounded-full">BR3T</span>`;
-      }
+      
       badgeCont.innerHTML += `<span class="px-2.5 py-1 text-xs font-bold ${p.status === 'Buka' ? 'bg-green-700' : 'bg-rose-700'} text-white rounded-full">${p.status}</span>`;
     }
 
@@ -493,7 +489,6 @@
       return { text: 'Sangat Baik', color: 'bg-teal-100 text-teal-800 border-teal-300' };
     }
 
-    // Fungsi Pengganti Kata "Saya" dengan Nama Siswa Target
     function getPersonQuestionText(teks, namaTarget) {
       let formatted = teks.replace(/^Saya\s+/i, `${namaTarget} `);
       formatted = formatted.replace(/\bsaya\b/gi, namaTarget);
@@ -1318,21 +1313,23 @@
               <p class="text-xs text-slate-500">Nilai gabungan Penilaian Diri, Penilaian Antar Teman, dan Observasi Wali Kelas.</p>
             </div>
             
-            <!-- TOOLBAR FILTER & EXPORT -->
+            <!-- TOOLBAR FILTER & EXPORT (HANYA JAGA LISAN & BR3T) -->
             <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+              <!-- Filter Semester -->
               <div class="flex items-center bg-white border border-slate-300 rounded-lg p-1 text-xs">
                 <span class="px-2 text-slate-500 font-semibold">Semester:</span>
                 <button onclick="changeRekapFilter('semester', 'Ganjil')" class="px-3 py-1.5 rounded-md font-bold transition ${currentSemester === 'Ganjil' ? 'bg-amber-600 text-white' : 'text-slate-600 hover:bg-slate-100'}">Ganjil</button>
                 <button onclick="changeRekapFilter('semester', 'Genap')" class="px-3 py-1.5 rounded-md font-bold transition ${currentSemester === 'Genap' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}">Genap</button>
               </div>
 
+              <!-- Filter Fokus (Hanya 2 Pilihan) -->
               <div class="flex items-center bg-white border border-slate-300 rounded-lg p-1 text-xs">
                 <span class="px-2 text-slate-500 font-semibold">Fokus:</span>
-                <button onclick="changeRekapFilter('fokus', 'Semua')" class="px-2.5 py-1.5 rounded-md font-bold transition ${currentFokus === 'Semua' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'}">Semua</button>
-                <button onclick="changeRekapFilter('fokus', 'Jaga Lisan')" class="px-2.5 py-1.5 rounded-md font-bold transition ${currentFokus === 'Jaga Lisan' ? 'bg-emerald-700 text-white' : 'text-slate-600 hover:bg-slate-100'}">Jaga Lisan</button>
-                <button onclick="changeRekapFilter('fokus', 'BR3T')" class="px-2.5 py-1.5 rounded-md font-bold transition ${currentFokus === 'BR3T' ? 'bg-teal-700 text-white' : 'text-slate-600 hover:bg-slate-100'}">BR3T</button>
+                <button onclick="changeRekapFilter('fokus', 'Jaga Lisan')" class="px-3 py-1.5 rounded-md font-bold transition ${currentFokus === 'Jaga Lisan' ? 'bg-emerald-700 text-white' : 'text-slate-600 hover:bg-slate-100'}">Jaga Lisan</button>
+                <button onclick="changeRekapFilter('fokus', 'BR3T')" class="px-3 py-1.5 rounded-md font-bold transition ${currentFokus === 'BR3T' ? 'bg-teal-700 text-white' : 'text-slate-600 hover:bg-slate-100'}">BR3T</button>
               </div>
 
+              <!-- Copy Buttons -->
               <div class="flex items-center gap-2">
                 <button onclick="copyNamaSiswaRekap()" class="px-3 py-2 bg-slate-800 text-white text-xs font-semibold rounded-lg hover:bg-slate-900 transition flex items-center gap-1.5 min-h-[38px]" title="Copy daftar nama siswa satu per baris">
                   <i class="fa-solid fa-copy"></i> Copy Nama
